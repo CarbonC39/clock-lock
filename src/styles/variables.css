@@ -1,0 +1,107 @@
+/* Catppuccin Latte (light) */
+:root,
+[data-theme="light"] {
+  --color-bg: #eff1f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #e6e9ef;
+  --color-border: #ccd0da;
+
+  --color-accent-blue: #1e66f5;
+  --color-accent-pink: #ea76cb;
+  --color-accent-purple: #8839ef;
+  --color-accent-green: #40a02b;
+  --color-accent-red: #d20f39;
+  --color-accent-yellow: #df8e1d;
+
+  --color-text-primary: #4c4f69;
+  --color-text-secondary: #6c6f85;
+  --color-text-muted: #9ca0b0;
+
+  --color-sidebar-bg: #e6e9ef;
+  --color-topbar-bg: #eff1f5;
+
+  --git-modified: #df8e1d;
+  --git-added: #40a02b;
+  --git-deleted: #d20f39;
+  --git-untracked: #1e66f5;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", monospace;
+
+  --transition: 0.15s ease;
+}
+
+/* Catppuccin Mocha (dark) */
+[data-theme="dark"] {
+  --color-bg: #1e1e2e;
+  --color-surface: #313244;
+  --color-surface-hover: #45475a;
+  --color-border: #45475a;
+
+  --color-accent-blue: #89b4fa;
+  --color-accent-pink: #f5c2e7;
+  --color-accent-purple: #cba6f7;
+  --color-accent-green: #a6e3a1;
+  --color-accent-red: #f38ba8;
+  --color-accent-yellow: #f9e2af;
+
+  --color-text-primary: #cdd6f4;
+  --color-text-secondary: #bac2de;
+  --color-text-muted: #6c7086;
+
+  --color-sidebar-bg: #181825;
+  --color-topbar-bg: #1e1e2e;
+
+  --git-modified: #f9e2af;
+  --git-added: #a6e3a1;
+  --git-deleted: #f38ba8;
+  --git-untracked: #89dceb;
+}
+
+/* Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
