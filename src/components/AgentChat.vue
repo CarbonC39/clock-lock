@@ -1,46 +1,129 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, nextTick, watch } from "vue";
+import { useRouter } from "vue-router";
+import { SendHorizonal, Settings2, Trash2 } from "lucide-vue-next";
 import { useAgentStore } from "../stores/agentStore";
+import { useSettingsStore } from "../stores/settingsStore";
+import ChatMessage from "./ChatMessage.vue";
 
+const router = useRouter();
 const agent = useAgentStore();
-const inputText = ref("");
+const settings = useSettingsStore();
 
-// Pet state display map
+const inputText = ref("");
+const messagesEl = ref<HTMLDivElement>();
+
 const petFace: Record<string, string> = {
-  idle: "(・ω・)",
-  thinking: "(・・ ) ...",
-  happy: "(＾▽＾)",
-  sleepy: "(-.-) zzz",
-  excited: "(*ﾟ▽ﾟ*)",
+  idle:     "(・ω・)",
+  thinking: "(・・ )  ···",
+  happy:    "(＾▽＾)",
+  sleepy:   "(-.-) zzz",
+  excited:  "(*ﾟ▽ﾟ*)",
 };
+
+function scrollToBottom() {
+  nextTick(() => {
+    if (messagesEl.value) {
+      messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
+    }
+  });
+}
+
+watch(() => agent.messages.length, scrollToBottom);
+watch(
+  () => agent.messages[agent.messages.length - 1]?.content,
+  scrollToBottom
+);
+
+async function send() {
+  const text = inputText.value.trim();
+  if (!text || agent.isBusy) return;
+  inputText.value = "";
+  await agent.sendMessage(text);
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+}
 </script>
 
 <template>
   <div class="agent-chat">
-    <!-- Panel header with pet character -->
+    <!-- ── Header ── -->
     <div class="panel-header">
       <span class="pet-face">{{ petFace[agent.state] }}</span>
       <span class="panel-title">Agent</span>
-    </div>
-
-    <!-- Message area -->
-    <div class="message-area">
-      <div class="intro-message">
-        <p>Hi! Open a workspace and I'll help you track progress, answer questions, and keep you moving.</p>
+      <div class="header-actions">
+        <button
+          v-if="agent.messages.length"
+          class="hdr-btn"
+          title="Clear chat"
+          @click="agent.clear()"
+        >
+          <Trash2 :size="12" />
+        </button>
+        <button
+          class="hdr-btn"
+          title="Settings"
+          @click="router.push('/settings')"
+        >
+          <Settings2 :size="12" />
+        </button>
       </div>
-      <!-- Messages render here in M4 -->
     </div>
 
-    <!-- Input area -->
-    <div class="input-area">
-      <textarea
-        v-model="inputText"
-        class="chat-input"
-        placeholder="Message agent... (M4)"
-        rows="3"
-        disabled
+    <!-- ── Messages ── -->
+    <div ref="messagesEl" class="messages">
+      <!-- Intro when empty -->
+      <div v-if="!agent.messages.length" class="intro">
+        <p class="pet-large">{{ petFace[agent.state] }}</p>
+        <p class="intro-text">
+          Hi! I'm your AI workspace companion.<br>
+          Open a workspace and ask me anything about your project.
+        </p>
+        <div v-if="!settings.settings.api_key && settings.settings.provider === 'cloud'" class="setup-hint">
+          Configure your API key in
+          <button class="link-btn" @click="router.push('/settings')">Settings</button>
+          to get started.
+        </div>
+      </div>
+
+      <ChatMessage
+        v-for="msg in agent.messages"
+        :key="msg.id"
+        :message="msg"
       />
-      <button class="send-btn" disabled>Send</button>
+    </div>
+
+    <!-- ── Input ── -->
+    <div class="input-area">
+      <div class="input-row">
+        <textarea
+          v-model="inputText"
+          class="chat-input"
+          placeholder="Ask me anything… (Enter to send)"
+          rows="1"
+          :disabled="agent.isBusy"
+          @keydown="onKeydown"
+          @input="(e) => { const t = e.target as HTMLTextAreaElement; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'; }"
+        />
+        <button
+          class="send-btn"
+          :disabled="agent.isBusy || !inputText.trim()"
+          @click="send"
+        >
+          <SendHorizonal :size="14" />
+        </button>
+      </div>
+      <div class="input-footer">
+        <span class="model-badge">
+          {{ settings.settings.provider === "ollama" ? "Ollama" : "Cloud" }}
+          · {{ settings.settings.model }}
+        </span>
+      </div>
     </div>
   </div>
 </template>
@@ -53,12 +136,13 @@ const petFace: Record<string, string> = {
   overflow: hidden;
 }
 
+/* ── Header ── */
 .panel-header {
   display: flex;
   align-items: center;
   gap: 8px;
   height: 36px;
-  padding: 0 12px;
+  padding: 0 8px 0 12px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
@@ -68,6 +152,7 @@ const petFace: Record<string, string> = {
   color: var(--color-accent-purple);
   font-family: var(--font-mono);
   flex-shrink: 0;
+  min-width: 80px;
 }
 
 .panel-title {
@@ -76,46 +161,107 @@ const petFace: Record<string, string> = {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--color-text-muted);
+  flex: 1;
 }
 
-/* Message area */
-.message-area {
+.header-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.hdr-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--transition), background-color var(--transition);
+}
+.hdr-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+/* ── Messages ── */
+.messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 12px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.intro-message {
-  padding: 10px 12px;
-  background-color: var(--color-surface);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
+.intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 10px;
+  text-align: center;
+  padding: 20px;
 }
 
-.intro-message p {
+.pet-large {
+  font-size: 22px;
+  color: var(--color-accent-purple);
+  font-family: var(--font-mono);
+  margin: 0;
+}
+
+.intro-text {
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
   line-height: 1.6;
   margin: 0;
 }
 
-/* Input area */
+.setup-hint {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-accent-yellow) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-yellow) 30%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  margin-top: 4px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--color-accent-blue);
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ── Input ── */
 .input-area {
-  padding: 10px 12px;
   border-top: 1px solid var(--color-border);
+  padding: 8px 10px 6px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  gap: 5px;
+}
+
+.input-row {
+  display: flex;
   gap: 6px;
-  flex-shrink: 0;
+  align-items: flex-end;
 }
 
 .chat-input {
-  width: 100%;
+  flex: 1;
   resize: none;
-  background-color: var(--color-surface);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 8px 10px;
@@ -125,36 +271,40 @@ const petFace: Record<string, string> = {
   line-height: 1.5;
   outline: none;
   transition: border-color var(--transition);
+  min-height: 36px;
+  max-height: 120px;
+  overflow-y: auto;
 }
-
-.chat-input:focus {
-  border-color: var(--color-accent-blue);
-}
-
-.chat-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+.chat-input:focus { border-color: var(--color-accent-blue); }
+.chat-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-input::placeholder { color: var(--color-text-muted); }
 
 .send-btn {
-  align-self: flex-end;
-  padding: 5px 14px;
-  font-size: 12px;
-  font-weight: 500;
-  background-color: var(--color-accent-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  background: var(--color-accent-blue);
   color: #fff;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: opacity var(--transition);
 }
+.send-btn:hover:not(:disabled) { opacity: 0.85; }
+.send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.send-btn:hover:not(:disabled) {
-  opacity: 0.85;
+.input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
-.send-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.model-badge {
+  font-size: 10.5px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
 }
 </style>

@@ -1,73 +1,114 @@
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
+import { Settings, Sun, Moon, FolderOpen, Minus, Square, X } from "lucide-vue-next";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useUiStore } from "../stores/uiStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
 const router = useRouter();
 const ui = useUiStore();
 const workspace = useWorkspaceStore();
+
+const win = getCurrentWindow();
+const isMaximized = ref(false);
+let unlistenResize: (() => void) | null = null;
+
+onMounted(async () => {
+  isMaximized.value = await win.isMaximized();
+  unlistenResize = await win.onResized(async () => {
+    isMaximized.value = await win.isMaximized();
+  });
+});
+
+onUnmounted(() => {
+  unlistenResize?.();
+});
+
+async function minimize() { await win.minimize(); }
+async function toggleMaximize() { await win.toggleMaximize(); }
+async function close() { await win.close(); }
 </script>
 
 <template>
   <header class="topbar">
+    <!-- Left: brand + workspace -->
     <div class="topbar-left">
-      <span class="app-name">Clock Lock</span>
-      <span v-if="workspace.name" class="workspace-name">{{ workspace.name }}</span>
-      <button class="open-btn" @click="workspace.openWorkspace()">Open Folder</button>
+      <div class="brand">
+        <span class="brand-dot" />
+        <span class="brand-name">Clock Lock</span>
+      </div>
+
+      <div class="divider-v" />
+
+      <button class="open-btn" @click="workspace.openWorkspace()">
+        <FolderOpen :size="13" />
+        <span>{{ workspace.name ?? "Open Folder" }}</span>
+      </button>
     </div>
 
+    <!-- Center: drag region -->
+    <div class="drag-fill" />
+
+    <!-- Right: app controls + window controls -->
     <div class="topbar-right">
       <button class="icon-btn" title="Settings" @click="router.push('/settings')">
-        <IconSettings />
+        <Settings :size="14" />
       </button>
-      <button class="icon-btn" :title="ui.isDark ? 'Light mode' : 'Dark mode'" @click="ui.toggleTheme()">
-        <IconSun v-if="ui.isDark" />
-        <IconMoon v-else />
+
+      <button
+        class="icon-btn theme-btn"
+        :title="ui.isDark ? 'Light mode' : 'Dark mode'"
+        @click="ui.toggleTheme()"
+      >
+        <Sun v-if="ui.isDark" :size="14" />
+        <Moon v-else :size="14" />
+      </button>
+
+      <div class="win-divider" />
+
+      <button class="win-btn win-min" title="Minimize" @click="minimize">
+        <Minus :size="11" />
+      </button>
+      <button class="win-btn win-max" :title="isMaximized ? 'Restore' : 'Maximize'" @click="toggleMaximize">
+        <Square :size="10" />
+      </button>
+      <button class="win-btn win-close" title="Close" @click="close">
+        <X :size="11" />
       </button>
     </div>
   </header>
 </template>
 
-<!-- Inline SVG icons to avoid icon library dependency -->
-<script lang="ts">
-const IconSettings = {
-  template: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-  </svg>`,
-};
-
-const IconSun = {
-  template: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="5"/>
-    <line x1="12" y1="1" x2="12" y2="3"/>
-    <line x1="12" y1="21" x2="12" y2="23"/>
-    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-    <line x1="1" y1="12" x2="3" y2="12"/>
-    <line x1="21" y1="12" x2="23" y2="12"/>
-    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-  </svg>`,
-};
-
-const IconMoon = {
-  template: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-  </svg>`,
-};
-</script>
-
 <style scoped>
 .topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   height: 40px;
-  padding: 0 12px;
+  padding: 0 0 0 10px;
   background-color: var(--color-topbar-bg);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-topbar-border);
   flex-shrink: 0;
+  -webkit-app-region: drag;
+  position: relative;
+  user-select: none;
+}
+
+[data-theme="light"] .topbar::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-accent-blue);
+  opacity: 0.5;
+}
+
+/* Drag spacer fills the gap between left and right */
+.drag-fill {
+  flex: 1;
+  height: 100%;
   -webkit-app-region: drag;
 }
 
@@ -75,25 +116,71 @@ const IconMoon = {
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   -webkit-app-region: no-drag;
+  flex-shrink: 0;
 }
 
-.app-name {
+/* ── Brand ── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-accent-blue), var(--color-accent-pink));
+  flex-shrink: 0;
+}
+
+.brand-name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text-primary);
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
 }
 
-.workspace-name {
+.divider-v {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+  margin: 0 4px;
+}
+
+/* ── Workspace button ── */
+.open-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
   font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  background: none;
+  border: none;
   color: var(--color-text-muted);
-  padding: 2px 6px;
-  background-color: var(--color-surface-hover);
   border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+  max-width: 200px;
+  overflow: hidden;
 }
 
+.open-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.open-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+/* ── App icon buttons ── */
 .icon-btn {
   display: flex;
   align-items: center;
@@ -102,7 +189,7 @@ const IconMoon = {
   height: 28px;
   border: none;
   background: none;
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
   cursor: pointer;
   border-radius: var(--radius-sm);
   transition: background-color var(--transition), color var(--transition);
@@ -113,20 +200,38 @@ const IconMoon = {
   color: var(--color-text-primary);
 }
 
-.open-btn {
-  padding: 3px 10px;
-  font-size: 12px;
-  font-weight: 500;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition);
+.theme-btn:hover { color: var(--color-accent-yellow); }
+
+/* ── Window divider ── */
+.win-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+  margin: 0 2px;
 }
 
-.open-btn:hover {
-  background: var(--color-surface-hover);
+/* ── Window control buttons ── */
+.win-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 40px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+  border-radius: 0;
+}
+
+.win-btn:hover {
+  background-color: var(--color-surface-hover);
   color: var(--color-text-primary);
+}
+
+.win-close:hover {
+  background-color: #e81123;
+  color: #fff;
 }
 </style>

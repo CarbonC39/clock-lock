@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from "vue";
+import { RotateCw } from "lucide-vue-next";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import FileTreeNode from "./FileTreeNode.vue";
@@ -28,7 +29,7 @@ onUnmounted(() => {
         class="refresh-btn"
         title="Refresh"
         @click="workspace.refreshTree()"
-      >↻</button>
+      ><RotateCw :size="12" /></button>
     </div>
 
     <div class="panel-body">

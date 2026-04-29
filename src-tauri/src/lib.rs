@@ -1,10 +1,13 @@
 mod commands;
 mod watcher;
 
+use commands::agent::chat_stream;
 use commands::fs::{
-    ensure_home_md, get_annotations, get_git_status, list_dir, read_file, save_annotation,
-    write_file,
+    ensure_home_md, get_annotations, get_git_status, get_last_workspace, list_dir, read_file,
+    read_image_b64, save_annotation, set_last_workspace, write_file,
 };
+use commands::settings::{get_settings, save_settings};
+use commands::shell::{classify_command, run_command};
 use watcher::{start_watching, stop_watching, WatcherState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -18,15 +21,28 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            // fs
             list_dir,
             read_file,
+            read_image_b64,
             write_file,
             ensure_home_md,
             get_git_status,
             save_annotation,
             get_annotations,
+            get_last_workspace,
+            set_last_workspace,
+            // watcher
             start_watching,
             stop_watching,
+            // agent
+            chat_stream,
+            // settings
+            get_settings,
+            save_settings,
+            // shell
+            classify_command,
+            run_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

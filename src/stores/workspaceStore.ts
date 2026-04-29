@@ -45,6 +45,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }
 
     invoke("start_watching", { workspacePath: dirPath }).catch(console.warn);
+    invoke("set_last_workspace", { workspacePath: dirPath }).catch(console.warn);
   }
 
   async function refreshTree() {

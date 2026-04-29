@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fs, path::Path};
 
 use serde::{Deserialize, Serialize};
+use tauri::Manager as _;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FileNode {
@@ -31,6 +32,23 @@ const BINARY_EXTS: &[&str] = &[
     "bin", "dat", "db", "sqlite", "sqlite3",
     "safetensors", "pt", "pth", "onnx",
 ];
+
+/// Deterministic djb2 hash of a workspace path → 16-char hex folder name
+fn workspace_hash(path: &str) -> String {
+    let mut h: u64 = 5381;
+    for b in path.bytes() {
+        h = h.wrapping_mul(33).wrapping_add(b as u64);
+    }
+    format!("{h:016x}")
+}
+
+/// Returns the per-workspace app-data directory, creating it if needed.
+fn workspace_data_dir(app: &tauri::AppHandle, workspace_path: &str) -> Result<std::path::PathBuf, String> {
+    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let dir = base.join("workspaces").join(workspace_hash(workspace_path));
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
+}
 
 pub fn is_binary_ext(name: &str) -> bool {
     let ext = name.rsplit('.').next().unwrap_or("").to_lowercase();
@@ -162,18 +180,15 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content).map_err(|e| e.to_string())
 }
 
-/// Ensures .clocklock/home.md exists in the workspace. Returns its path and content.
+/// Ensures home.md exists in the app-data workspace dir. Returns its path and content.
 #[tauri::command]
-pub fn ensure_home_md(workspace_path: String) -> Result<(String, String), String> {
-    let dir = Path::new(&workspace_path).join(".clocklock");
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-
+pub fn ensure_home_md(app: tauri::AppHandle, workspace_path: String) -> Result<(String, String), String> {
+    let dir = workspace_data_dir(&app, &workspace_path)?;
     let home_path = dir.join("home.md");
     if !home_path.exists() {
         let template = "# Overview\n\nDescribe your project here.\n\n# Progress\n\n- [ ] Getting started\n\n# Todos\n\n- [ ] First task\n";
         fs::write(&home_path, template).map_err(|e| e.to_string())?;
     }
-
     let content = fs::read_to_string(&home_path).map_err(|e| e.to_string())?;
     let path_str = home_path.to_string_lossy().replace('\\', "/");
     Ok((path_str, content))
@@ -235,10 +250,11 @@ pub fn get_git_status(workspace_path: String) -> Result<GitStatus, String> {
     })
 }
 
-/// Save binary file annotation to .clocklock/meta.json
+/// Save binary file annotation to app-data meta.json (keyed by workspace hash)
 #[tauri::command]
-pub fn save_annotation(workspace_path: String, rel_path: String, note: String) -> Result<(), String> {
-    let meta_path = Path::new(&workspace_path).join(".clocklock").join("meta.json");
+pub fn save_annotation(app: tauri::AppHandle, workspace_path: String, rel_path: String, note: String) -> Result<(), String> {
+    let dir = workspace_data_dir(&app, &workspace_path)?;
+    let meta_path = dir.join("meta.json");
 
     let mut meta: serde_json::Map<String, serde_json::Value> = if meta_path.exists() {
         let raw = fs::read_to_string(&meta_path).map_err(|e| e.to_string())?;
@@ -254,19 +270,54 @@ pub fn save_annotation(workspace_path: String, rel_path: String, note: String) -
     }
 
     let json = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
-    if let Some(parent) = meta_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
     fs::write(&meta_path, json).map_err(|e| e.to_string())
 }
 
+/// Read an image file and return it as a base64 data URL (avoids asset:// protocol issues)
 #[tauri::command]
-pub fn get_annotations(workspace_path: String) -> Result<HashMap<String, String>, String> {
-    let meta_path = Path::new(&workspace_path).join(".clocklock").join("meta.json");
+pub fn read_image_b64(path: String) -> Result<String, String> {
+    use base64::Engine as _;
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let ext = path.rsplit('.').next().unwrap_or("").to_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "ico" => "image/x-icon",
+        "bmp" => "image/bmp",
+        "avif" => "image/avif",
+        _ => "image/png",
+    };
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{};base64,{}", mime, encoded))
+}
+
+#[tauri::command]
+pub fn get_annotations(app: tauri::AppHandle, workspace_path: String) -> Result<HashMap<String, String>, String> {
+    let dir = workspace_data_dir(&app, &workspace_path)?;
+    let meta_path = dir.join("meta.json");
     if !meta_path.exists() {
         return Ok(HashMap::new());
     }
     let raw = fs::read_to_string(&meta_path).map_err(|e| e.to_string())?;
     let map: HashMap<String, String> = serde_json::from_str(&raw).unwrap_or_default();
     Ok(map)
+}
+
+/// Persist the last-opened workspace path.
+#[tauri::command]
+pub fn set_last_workspace(app: tauri::AppHandle, workspace_path: String) -> Result<(), String> {
+    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+    fs::write(base.join("last_workspace.txt"), &workspace_path).map_err(|e| e.to_string())
+}
+
+/// Returns the last-opened workspace path if the folder still exists on disk.
+#[tauri::command]
+pub fn get_last_workspace(app: tauri::AppHandle) -> Option<String> {
+    let base = app.path().app_data_dir().ok()?;
+    let raw = fs::read_to_string(base.join("last_workspace.txt")).ok()?;
+    let p = raw.trim().to_string();
+    if p.is_empty() || !Path::new(&p).is_dir() { None } else { Some(p) }
 }

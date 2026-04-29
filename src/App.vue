@@ -1,9 +1,20 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import { useUiStore } from "./stores/uiStore";
+import { useWorkspaceStore } from "./stores/workspaceStore";
+import { useSettingsStore } from "./stores/settingsStore";
 
 const ui = useUiStore();
-onMounted(() => ui.initTheme());
+const workspace = useWorkspaceStore();
+const settings = useSettingsStore();
+
+onMounted(async () => {
+  ui.initTheme();
+  settings.load();
+  const last = await invoke<string | null>("get_last_workspace").catch(() => null);
+  if (last) workspace.loadWorkspace(last).catch(console.warn);
+});
 </script>
 
 <template>

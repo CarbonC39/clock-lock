@@ -8,7 +8,10 @@
       "Bash(npx create-tauri-app@latest *)",
       "Bash(cargo check *)",
       "Bash(npm run *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(cargo build *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

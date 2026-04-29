@@ -1,0 +1,60 @@
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+
+export interface AgentSettings {
+  provider: "cloud" | "ollama";
+  base_url: string;
+  api_key: string;
+  model: string;
+  personality: string;
+}
+
+const CLOUD_DEFAULTS = {
+  base_url: "https://api.openai.com/v1",
+  model: "gpt-4o-mini",
+};
+const OLLAMA_DEFAULTS = {
+  base_url: "http://localhost:11434/v1",
+  model: "llama3.2",
+};
+
+export const useSettingsStore = defineStore("settings", () => {
+  const settings = ref<AgentSettings>({
+    provider: "cloud",
+    base_url: CLOUD_DEFAULTS.base_url,
+    api_key: "",
+    model: CLOUD_DEFAULTS.model,
+    personality: "helpful and encouraging senior developer",
+  });
+
+  const loaded = ref(false);
+
+  async function load() {
+    try {
+      const s = await invoke<AgentSettings>("get_settings");
+      settings.value = s;
+    } catch {
+      // use defaults
+    }
+    loaded.value = true;
+  }
+
+  async function save() {
+    await invoke("save_settings", { settings: settings.value });
+  }
+
+  function switchProvider(p: "cloud" | "ollama") {
+    settings.value.provider = p;
+    if (p === "ollama") {
+      settings.value.base_url = OLLAMA_DEFAULTS.base_url;
+      settings.value.model = OLLAMA_DEFAULTS.model;
+      settings.value.api_key = "";
+    } else {
+      settings.value.base_url = CLOUD_DEFAULTS.base_url;
+      settings.value.model = CLOUD_DEFAULTS.model;
+    }
+  }
+
+  return { settings, loaded, load, save, switchProvider };
+});
