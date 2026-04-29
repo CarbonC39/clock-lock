@@ -213,8 +213,12 @@ async function close() { await win.close(); }
   color: var(--color-text-primary);
 }
 
+.win-close {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
 .win-close:hover {
-  background-color: #e81123;
+  background-color: #c0392b;
   color: #fff;
 }
 </style>

@@ -136,7 +136,7 @@ onUnmounted(() => {
 }
 
 .divider:hover {
-  background-color: var(--color-accent-blue);
-  opacity: 0.4;
+  background-color: var(--color-border);
+  opacity: 0.8;
 }
 </style>

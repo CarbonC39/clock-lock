@@ -121,7 +121,7 @@ fn build_tree(
     let mut nodes = Vec::new();
     for entry in entries {
         let name = entry.file_name().to_string_lossy().to_string();
-        if name == ".git" {
+        if matches!(name.as_str(), ".git" | ".clocklock") {
             continue;
         }
 

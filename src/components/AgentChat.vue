@@ -100,7 +100,7 @@ function onKeydown(e: KeyboardEvent) {
 
     <!-- ── Input ── -->
     <div class="input-area">
-      <div class="input-row">
+      <div class="input-row" :class="{ disabled: agent.isBusy }">
         <textarea
           v-model="inputText"
           class="chat-input"
@@ -225,8 +225,8 @@ function onKeydown(e: KeyboardEvent) {
 .setup-hint {
   font-size: 12px;
   color: var(--color-text-muted);
-  background: color-mix(in srgb, var(--color-accent-yellow) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-accent-yellow) 30%, transparent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 6px 12px;
   margin-top: 4px;
@@ -254,46 +254,57 @@ function onKeydown(e: KeyboardEvent) {
 
 .input-row {
   display: flex;
-  gap: 6px;
-  align-items: flex-end;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: border-color var(--transition);
+  overflow: hidden;
+}
+
+.input-row:focus-within {
+  border-color: var(--color-accent-blue);
+}
+
+.input-row.disabled {
+  opacity: 0.5;
 }
 
 .chat-input {
   flex: 1;
   resize: none;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
   padding: 8px 10px;
   font-size: 13px;
   font-family: var(--font-sans);
   color: var(--color-text-primary);
   line-height: 1.5;
   outline: none;
-  transition: border-color var(--transition);
   min-height: 36px;
   max-height: 120px;
   overflow-y: auto;
 }
-.chat-input:focus { border-color: var(--color-accent-blue); }
-.chat-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-input:disabled { cursor: not-allowed; }
 .chat-input::placeholder { color: var(--color-text-muted); }
 
 .send-btn {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  padding-bottom: 9px;
   flex-shrink: 0;
-  background: var(--color-accent-blue);
-  color: #fff;
+  background: none;
   border: none;
-  border-radius: var(--radius-md);
+  border-left: 1px solid var(--color-border);
+  color: var(--color-accent-blue);
   cursor: pointer;
-  transition: opacity var(--transition);
+  transition: background-color var(--transition), color var(--transition);
 }
-.send-btn:hover:not(:disabled) { opacity: 0.85; }
+.send-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent-blue) 8%, transparent);
+}
 .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .input-footer {

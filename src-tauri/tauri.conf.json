@@ -18,7 +18,8 @@
         "minWidth": 720,
         "minHeight": 500,
         "decorations": false,
-        "shadow": true
+        "shadow": true,
+        "backgroundColor": "#1e1e2e"
       }
     ],
     "security": {

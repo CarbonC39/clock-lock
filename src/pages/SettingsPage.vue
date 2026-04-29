@@ -32,110 +32,135 @@ async function save() {
     </div>
 
     <div class="settings-body">
+      <!-- ── Top grid: Provider (left) + Appearance & Behavior (right) ── -->
+      <div class="top-grid">
 
-      <!-- ── Appearance ── -->
-      <section class="section">
-        <h2 class="section-title">Appearance</h2>
+        <!-- Left: AI Provider -->
+        <section class="section">
+          <h2 class="section-title">AI Provider</h2>
 
-        <div class="field-group">
-          <label class="field-label">Theme</label>
-          <div class="theme-tabs">
-            <button
-              class="theme-tab"
-              :class="{ active: ui.themeMode === 'light' }"
-              @click="ui.setThemeMode('light')"
-            >
-              <Sun :size="13" />
-              Light
-            </button>
-            <button
-              class="theme-tab"
-              :class="{ active: ui.themeMode === 'system' }"
-              @click="ui.setThemeMode('system')"
-            >
-              <Monitor :size="13" />
-              System
-            </button>
-            <button
-              class="theme-tab"
-              :class="{ active: ui.themeMode === 'dark' }"
-              @click="ui.setThemeMode('dark')"
-            >
-              <Moon :size="13" />
-              Dark
-            </button>
+          <div class="field-group">
+            <label class="field-label">Provider</label>
+            <div class="provider-tabs">
+              <button
+                class="provider-tab"
+                :class="{ active: store.settings.provider === 'cloud' }"
+                @click="store.switchProvider('cloud')"
+              >
+                <Cloud :size="14" />
+                Cloud (OpenAI-compatible)
+              </button>
+              <button
+                class="provider-tab"
+                :class="{ active: store.settings.provider === 'ollama' }"
+                @click="store.switchProvider('ollama')"
+              >
+                <Server :size="14" />
+                Local (Ollama)
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
 
-      <!-- ── AI Provider ── -->
-      <section class="section">
-        <h2 class="section-title">AI Provider</h2>
-
-        <div class="field-group">
-          <label class="field-label">Provider</label>
-          <div class="provider-tabs">
-            <button
-              class="provider-tab"
-              :class="{ active: store.settings.provider === 'cloud' }"
-              @click="store.switchProvider('cloud')"
-            >
-              <Cloud :size="14" />
-              Cloud (OpenAI-compatible)
-            </button>
-            <button
-              class="provider-tab"
-              :class="{ active: store.settings.provider === 'ollama' }"
-              @click="store.switchProvider('ollama')"
-            >
-              <Server :size="14" />
-              Local (Ollama)
-            </button>
-          </div>
-        </div>
-
-        <div class="field-group">
-          <label class="field-label">Endpoint URL</label>
-          <input
-            v-model="store.settings.base_url"
-            class="field-input"
-            type="url"
-            placeholder="https://api.openai.com/v1"
-            spellcheck="false"
-          />
-        </div>
-
-        <div v-if="store.settings.provider === 'cloud'" class="field-group">
-          <label class="field-label">API Key</label>
-          <div class="input-with-toggle">
+          <div class="field-group">
+            <label class="field-label">Endpoint URL</label>
             <input
-              v-model="store.settings.api_key"
+              v-model="store.settings.base_url"
               class="field-input"
-              :type="showKey ? 'text' : 'password'"
-              placeholder="sk-…"
+              type="url"
+              placeholder="https://api.openai.com/v1"
               spellcheck="false"
             />
-            <button class="toggle-key-btn" @click="showKey = !showKey">
-              {{ showKey ? "Hide" : "Show" }}
-            </button>
           </div>
-          <p class="field-hint">Stored locally in the app data folder. Never leaves your machine.</p>
-        </div>
 
-        <div class="field-group">
-          <label class="field-label">Model</label>
-          <input
-            v-model="store.settings.model"
-            class="field-input"
-            type="text"
-            :placeholder="store.settings.provider === 'ollama' ? 'llama3.2' : 'gpt-4o-mini'"
-            spellcheck="false"
-          />
-        </div>
-      </section>
+          <div v-if="store.settings.provider === 'cloud'" class="field-group">
+            <label class="field-label">API Key</label>
+            <div class="input-with-toggle">
+              <input
+                v-model="store.settings.api_key"
+                class="field-input"
+                :type="showKey ? 'text' : 'password'"
+                placeholder="sk-…"
+                spellcheck="false"
+              />
+              <button class="toggle-key-btn" @click="showKey = !showKey">
+                {{ showKey ? "Hide" : "Show" }}
+              </button>
+            </div>
+            <p class="field-hint">Stored locally in app data. Never leaves your machine.</p>
+          </div>
 
-      <!-- ── Agent ── -->
-      <section class="section">
+          <div class="field-group">
+            <label class="field-label">Model</label>
+            <input
+              v-model="store.settings.model"
+              class="field-input"
+              type="text"
+              :placeholder="store.settings.provider === 'ollama' ? 'llama3.2' : 'gpt-4o-mini'"
+              spellcheck="false"
+            />
+          </div>
+        </section>
+
+        <!-- Right: Appearance + App Behavior -->
+        <div class="right-col">
+          <!-- Appearance -->
+          <section class="section">
+            <h2 class="section-title">Appearance</h2>
+
+            <div class="field-group">
+              <label class="field-label">Theme</label>
+              <div class="theme-tabs">
+                <button
+                  class="theme-tab"
+                  :class="{ active: ui.themeMode === 'light' }"
+                  @click="ui.setThemeMode('light')"
+                >
+                  <Sun :size="13" />
+                  Light
+                </button>
+                <button
+                  class="theme-tab"
+                  :class="{ active: ui.themeMode === 'system' }"
+                  @click="ui.setThemeMode('system')"
+                >
+                  <Monitor :size="13" />
+                  System
+                </button>
+                <button
+                  class="theme-tab"
+                  :class="{ active: ui.themeMode === 'dark' }"
+                  @click="ui.setThemeMode('dark')"
+                >
+                  <Moon :size="13" />
+                  Dark
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- App Behavior -->
+          <section class="section">
+            <h2 class="section-title">App Behavior</h2>
+
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-label">Auto-restore last workspace</span>
+                <span class="toggle-hint">Re-open the previous project folder on startup.</span>
+              </div>
+              <button
+                class="toggle-btn"
+                :class="{ on: ui.autoRestoreWorkspace }"
+                @click="ui.setAutoRestore(!ui.autoRestoreWorkspace)"
+              >
+                <span class="toggle-knob" />
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <!-- ── Agent (full width) ── -->
+      <section class="section section-full">
         <h2 class="section-title">Agent</h2>
 
         <div class="field-group">
@@ -160,7 +185,7 @@ async function save() {
               max="200"
               step="5"
             />
-            <p class="field-hint">How many past messages to include in each request.</p>
+            <p class="field-hint">Past messages included per request.</p>
           </div>
 
           <div class="field-group field-half">
@@ -175,25 +200,8 @@ async function save() {
             />
             <p class="field-hint">Token budget per response.</p>
           </div>
-        </div>
-      </section>
 
-      <!-- ── App Behavior ── -->
-      <section class="section">
-        <h2 class="section-title">App Behavior</h2>
-
-        <div class="toggle-row">
-          <div class="toggle-info">
-            <span class="toggle-label">Auto-restore last workspace</span>
-            <span class="toggle-hint">Re-open the previous project folder on startup.</span>
-          </div>
-          <button
-            class="toggle-btn"
-            :class="{ on: ui.autoRestoreWorkspace }"
-            @click="ui.setAutoRestore(!ui.autoRestoreWorkspace)"
-          >
-            <span class="toggle-knob" />
-          </button>
+          <div class="field-group field-half" />
         </div>
       </section>
 
@@ -223,7 +231,7 @@ async function save() {
   align-items: center;
   gap: 12px;
   height: 52px;
-  padding: 0 24px;
+  padding: 0 32px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
@@ -239,7 +247,7 @@ async function save() {
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background-color var(--transition), color var(--transition);
 }
 .back-btn:hover {
   background: var(--color-surface-hover);
@@ -257,22 +265,40 @@ async function save() {
 .settings-body {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 24px 60px;
-  max-width: 560px;
+  padding: 32px 40px 60px;
+}
+
+/* ── Top 2-column grid ── */
+.top-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 48px;
+  margin-bottom: 4px;
+}
+
+.right-col {
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── Section ── */
 .section {
-  margin-bottom: 36px;
+  margin-bottom: 32px;
+}
+
+.section-full {
+  /* spans naturally outside the top-grid */
 }
 
 .section-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-text-muted);
   margin: 0 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border-soft, var(--color-border));
 }
 
 /* ── Theme tabs ── */
@@ -283,14 +309,15 @@ async function save() {
   border-radius: var(--radius-md);
   padding: 3px;
   gap: 2px;
-  width: fit-content;
 }
 
 .theme-tab {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 6px 14px;
+  flex: 1;
+  padding: 6px 12px;
   font-size: 13px;
   font-weight: 600;
   background: none;
@@ -302,14 +329,12 @@ async function save() {
   white-space: nowrap;
 }
 
-.theme-tab:hover {
-  color: var(--color-text-primary);
-}
+.theme-tab:hover { color: var(--color-text-primary); }
 
 .theme-tab.active {
   background: var(--color-bg);
   color: var(--color-accent-blue);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
 }
 
 /* ── Provider tabs ── */
@@ -340,7 +365,7 @@ async function save() {
 }
 
 .provider-tab.active {
-  background: color-mix(in srgb, var(--color-accent-blue) 12%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-accent-blue) 10%, var(--color-surface));
   border-color: var(--color-accent-blue);
   color: var(--color-accent-blue);
 }
@@ -414,7 +439,7 @@ async function save() {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: border-color var(--transition), color var(--transition);
   white-space: nowrap;
 }
 .toggle-key-btn:hover {
@@ -428,8 +453,7 @@ async function save() {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--color-border);
+  padding: 10px 0;
 }
 
 .toggle-info {
@@ -461,9 +485,7 @@ async function save() {
   transition: background-color var(--transition);
 }
 
-.toggle-btn.on {
-  background: var(--color-accent-blue);
-}
+.toggle-btn.on { background: var(--color-accent-blue); }
 
 .toggle-knob {
   position: absolute;
@@ -477,21 +499,19 @@ async function save() {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.toggle-btn.on .toggle-knob {
-  transform: translateX(18px);
-}
+.toggle-btn.on .toggle-knob { transform: translateX(18px); }
 
 /* ── Save ── */
 .save-row {
   display: flex;
-  margin-top: 8px;
+  padding-top: 4px;
 }
 
 .save-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 24px;
+  padding: 9px 28px;
   font-size: 13px;
   font-weight: 600;
   background: var(--color-accent-blue);

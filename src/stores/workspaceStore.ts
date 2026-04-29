@@ -29,8 +29,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   async function loadWorkspace(dirPath: string) {
     isLoading.value = true;
-    path.value = dirPath;
-    name.value = dirPath.replace(/\\/g, "/").split("/").pop() ?? dirPath;
+    // Clear stale state so editor doesn't mount until new content is ready
+    homeMdPath.value = null;
+    homeMdContent.value = "";
+    selectedFilePath.value = null;
+    selectedFileContent.value = null;
 
     try {
       const [tree, [mdPath, mdContent]] = await Promise.all([
@@ -40,6 +43,9 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       fileTree.value = tree;
       homeMdPath.value = mdPath;
       homeMdContent.value = mdContent;
+      // Set path last so MarkdownEditor mounts with correct content
+      name.value = dirPath.replace(/\\/g, "/").split("/").pop() ?? dirPath;
+      path.value = dirPath;
     } finally {
       isLoading.value = false;
     }
