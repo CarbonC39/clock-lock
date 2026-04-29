@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, Cloud, Server, Check } from "lucide-vue-next";
+import { ArrowLeft, Cloud, Server, Check, Sun, Moon, Monitor } from "lucide-vue-next";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useUiStore } from "../stores/uiStore";
 
 const router = useRouter();
 const store = useSettingsStore();
+const ui = useUiStore();
+
 const saved = ref(false);
 const showKey = ref(false);
 
@@ -29,27 +32,66 @@ async function save() {
     </div>
 
     <div class="settings-body">
+
+      <!-- ── Appearance ── -->
+      <section class="section">
+        <h2 class="section-title">Appearance</h2>
+
+        <div class="field-group">
+          <label class="field-label">Theme</label>
+          <div class="theme-tabs">
+            <button
+              class="theme-tab"
+              :class="{ active: ui.themeMode === 'light' }"
+              @click="ui.setThemeMode('light')"
+            >
+              <Sun :size="13" />
+              Light
+            </button>
+            <button
+              class="theme-tab"
+              :class="{ active: ui.themeMode === 'system' }"
+              @click="ui.setThemeMode('system')"
+            >
+              <Monitor :size="13" />
+              System
+            </button>
+            <button
+              class="theme-tab"
+              :class="{ active: ui.themeMode === 'dark' }"
+              @click="ui.setThemeMode('dark')"
+            >
+              <Moon :size="13" />
+              Dark
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- ── AI Provider ── -->
       <section class="section">
         <h2 class="section-title">AI Provider</h2>
 
-        <div class="provider-tabs">
-          <button
-            class="provider-tab"
-            :class="{ active: store.settings.provider === 'cloud' }"
-            @click="store.switchProvider('cloud')"
-          >
-            <Cloud :size="14" />
-            Cloud (OpenAI-compatible)
-          </button>
-          <button
-            class="provider-tab"
-            :class="{ active: store.settings.provider === 'ollama' }"
-            @click="store.switchProvider('ollama')"
-          >
-            <Server :size="14" />
-            Local (Ollama)
-          </button>
+        <div class="field-group">
+          <label class="field-label">Provider</label>
+          <div class="provider-tabs">
+            <button
+              class="provider-tab"
+              :class="{ active: store.settings.provider === 'cloud' }"
+              @click="store.switchProvider('cloud')"
+            >
+              <Cloud :size="14" />
+              Cloud (OpenAI-compatible)
+            </button>
+            <button
+              class="provider-tab"
+              :class="{ active: store.settings.provider === 'ollama' }"
+              @click="store.switchProvider('ollama')"
+            >
+              <Server :size="14" />
+              Local (Ollama)
+            </button>
+          </div>
         </div>
 
         <div class="field-group">
@@ -92,9 +134,10 @@ async function save() {
         </div>
       </section>
 
-      <!-- ── Agent Personality ── -->
+      <!-- ── Agent ── -->
       <section class="section">
-        <h2 class="section-title">Agent Personality</h2>
+        <h2 class="section-title">Agent</h2>
+
         <div class="field-group">
           <label class="field-label">Personality prompt</label>
           <textarea
@@ -103,7 +146,54 @@ async function save() {
             rows="3"
             placeholder="e.g. encouraging senior developer who keeps things brief"
           />
-          <p class="field-hint">Injected into the agent's system prompt to shape its tone and style.</p>
+          <p class="field-hint">Injected into the system prompt to shape the agent's tone and style.</p>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group field-half">
+            <label class="field-label">Max context messages</label>
+            <input
+              v-model.number="store.settings.max_context_messages"
+              class="field-input"
+              type="number"
+              min="5"
+              max="200"
+              step="5"
+            />
+            <p class="field-hint">How many past messages to include in each request.</p>
+          </div>
+
+          <div class="field-group field-half">
+            <label class="field-label">Max response tokens</label>
+            <input
+              v-model.number="store.settings.max_tokens"
+              class="field-input"
+              type="number"
+              min="256"
+              max="32000"
+              step="256"
+            />
+            <p class="field-hint">Token budget per response.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── App Behavior ── -->
+      <section class="section">
+        <h2 class="section-title">App Behavior</h2>
+
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-label">Auto-restore last workspace</span>
+            <span class="toggle-hint">Re-open the previous project folder on startup.</span>
+          </div>
+          <button
+            class="toggle-btn"
+            :class="{ on: ui.autoRestoreWorkspace }"
+            @click="ui.setAutoRestore(!ui.autoRestoreWorkspace)"
+          >
+            <span class="toggle-knob" />
+          </button>
         </div>
       </section>
 
@@ -185,11 +275,47 @@ async function save() {
   margin: 0 0 16px;
 }
 
+/* ── Theme tabs ── */
+.theme-tabs {
+  display: flex;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 2px;
+  width: fit-content;
+}
+
+.theme-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+  white-space: nowrap;
+}
+
+.theme-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.theme-tab.active {
+  background: var(--color-bg);
+  color: var(--color-accent-blue);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
 /* ── Provider tabs ── */
 .provider-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 20px;
 }
 
 .provider-tab {
@@ -198,13 +324,14 @@ async function save() {
   gap: 7px;
   padding: 8px 16px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: all var(--transition);
+  transition: border-color var(--transition), color var(--transition), background-color var(--transition);
+  white-space: nowrap;
 }
 
 .provider-tab:hover {
@@ -216,7 +343,6 @@ async function save() {
   background: color-mix(in srgb, var(--color-accent-blue) 12%, var(--color-surface));
   border-color: var(--color-accent-blue);
   color: var(--color-accent-blue);
-  font-weight: 600;
 }
 
 /* ── Fields ── */
@@ -225,6 +351,16 @@ async function save() {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 16px;
+}
+
+.field-row {
+  display: flex;
+  gap: 16px;
+}
+
+.field-half {
+  flex: 1;
+  min-width: 0;
 }
 
 .field-label {
@@ -244,6 +380,7 @@ async function save() {
   outline: none;
   transition: border-color var(--transition);
   width: 100%;
+  box-sizing: border-box;
 }
 .field-input:focus { border-color: var(--color-accent-blue); }
 .field-input::placeholder { color: var(--color-text-muted); }
@@ -275,6 +412,7 @@ async function save() {
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--transition);
   white-space: nowrap;
@@ -284,9 +422,69 @@ async function save() {
   color: var(--color-accent-blue);
 }
 
+/* ── Toggle row ── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.toggle-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.toggle-hint {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.toggle-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  border: none;
+  background: var(--color-border);
+  cursor: pointer;
+  position: relative;
+  transition: background-color var(--transition);
+}
+
+.toggle-btn.on {
+  background: var(--color-accent-blue);
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform var(--transition);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-btn.on .toggle-knob {
+  transform: translateX(18px);
+}
+
 /* ── Save ── */
 .save-row {
   display: flex;
+  margin-top: 8px;
 }
 
 .save-btn {

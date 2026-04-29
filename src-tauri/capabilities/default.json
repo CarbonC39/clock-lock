@@ -11,6 +11,11 @@
     "shell:allow-execute",
     "shell:allow-open",
     "notification:allow-request-permission",
-    "notification:allow-show"
+    "notification:allow-show",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-is-maximized",
+    "core:window:allow-start-dragging"
   ]
 }

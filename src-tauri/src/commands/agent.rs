@@ -34,6 +34,7 @@ pub async fn chat_stream(
     base_url: String,
     api_key: String,
     model: String,
+    max_tokens: u32,
 ) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
@@ -53,7 +54,7 @@ pub async fn chat_stream(
         })).collect::<Vec<_>>(),
         "stream": true,
         "temperature": 0.7,
-        "max_tokens": 4096,
+        "max_tokens": max_tokens,
     });
 
     let mut req = client

@@ -2,6 +2,9 @@ use std::fs;
 use serde::{Deserialize, Serialize};
 use tauri::Manager as _;
 
+fn default_max_context_messages() -> u32 { 30 }
+fn default_max_tokens() -> u32 { 4096 }
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AgentSettings {
     pub provider: String,   // "cloud" | "ollama"
@@ -9,6 +12,10 @@ pub struct AgentSettings {
     pub api_key: String,
     pub model: String,
     pub personality: String,
+    #[serde(default = "default_max_context_messages")]
+    pub max_context_messages: u32,
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: u32,
 }
 
 impl Default for AgentSettings {
@@ -19,6 +26,8 @@ impl Default for AgentSettings {
             api_key: String::new(),
             model: "gpt-4o-mini".into(),
             personality: "helpful and encouraging senior developer".into(),
+            max_context_messages: 30,
+            max_tokens: 4096,
         }
     }
 }

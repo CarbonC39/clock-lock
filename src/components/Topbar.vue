@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { Settings, Sun, Moon, FolderOpen, Minus, Square, X } from "lucide-vue-next";
+import { Settings, FolderOpen, Minus, Square, X } from "lucide-vue-next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useUiStore } from "../stores/uiStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
 const router = useRouter();
-const ui = useUiStore();
 const workspace = useWorkspaceStore();
 
 const win = getCurrentWindow();
@@ -48,21 +46,12 @@ async function close() { await win.close(); }
     </div>
 
     <!-- Center: drag region -->
-    <div class="drag-fill" />
+    <div class="drag-fill" data-tauri-drag-region />
 
     <!-- Right: app controls + window controls -->
     <div class="topbar-right">
       <button class="icon-btn" title="Settings" @click="router.push('/settings')">
         <Settings :size="14" />
-      </button>
-
-      <button
-        class="icon-btn theme-btn"
-        :title="ui.isDark ? 'Light mode' : 'Dark mode'"
-        @click="ui.toggleTheme()"
-      >
-        <Sun v-if="ui.isDark" :size="14" />
-        <Moon v-else :size="14" />
       </button>
 
       <div class="win-divider" />
@@ -89,7 +78,6 @@ async function close() { await win.close(); }
   background-color: var(--color-topbar-bg);
   border-bottom: 1px solid var(--color-topbar-border);
   flex-shrink: 0;
-  -webkit-app-region: drag;
   position: relative;
   user-select: none;
 }
@@ -105,11 +93,9 @@ async function close() { await win.close(); }
   opacity: 0.5;
 }
 
-/* Drag spacer fills the gap between left and right */
 .drag-fill {
   flex: 1;
   height: 100%;
-  -webkit-app-region: drag;
 }
 
 .topbar-left,
@@ -117,7 +103,6 @@ async function close() { await win.close(); }
   display: flex;
   align-items: center;
   gap: 4px;
-  -webkit-app-region: no-drag;
   flex-shrink: 0;
 }
 
@@ -199,8 +184,6 @@ async function close() { await win.close(); }
   background-color: var(--color-surface-hover);
   color: var(--color-text-primary);
 }
-
-.theme-btn:hover { color: var(--color-accent-yellow); }
 
 /* ── Window divider ── */
 .win-divider {

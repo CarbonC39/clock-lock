@@ -12,8 +12,10 @@ const settings = useSettingsStore();
 onMounted(async () => {
   ui.initTheme();
   settings.load();
-  const last = await invoke<string | null>("get_last_workspace").catch(() => null);
-  if (last) workspace.loadWorkspace(last).catch(console.warn);
+  if (ui.autoRestoreWorkspace) {
+    const last = await invoke<string | null>("get_last_workspace").catch(() => null);
+    if (last) workspace.loadWorkspace(last).catch(console.warn);
+  }
 });
 </script>
 

@@ -46,10 +46,11 @@ Guidelines:
   }
 
   function buildApiMessages() {
+    const settings = useSettingsStore();
     const history = messages.value
       .filter(m => m.role === "user" || m.role === "assistant")
       .filter(m => !m.isStreaming && !m.error)
-      .slice(-30)
+      .slice(-settings.settings.max_context_messages)
       .map(m => ({ role: m.role, content: m.content }));
 
     return [
@@ -117,6 +118,7 @@ Guidelines:
         baseUrl: settings.settings.base_url,
         apiKey: settings.settings.api_key,
         model: settings.settings.model,
+        maxTokens: settings.settings.max_tokens,
       });
       state.value = "happy";
       setTimeout(() => { if (state.value === "happy") state.value = "idle"; }, 4000);

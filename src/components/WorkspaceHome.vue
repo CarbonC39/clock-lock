@@ -140,8 +140,8 @@ async function saveAnnotation() {
 }
 
 .open-zone:hover {
-  border-color: var(--color-accent-blue);
-  background: color-mix(in srgb, var(--color-accent-blue) 5%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent-blue) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-blue) 3%, transparent);
 }
 
 .open-zone-icon {
