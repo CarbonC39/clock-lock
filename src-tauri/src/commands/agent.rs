@@ -86,21 +86,29 @@ pub async fn chat_stream(
         let bytes = item.map_err(|e| e.to_string())?;
         buf.push_str(&String::from_utf8_lossy(&bytes));
 
-        loop {
-            let Some(pos) = buf.find('\n') else { break };
-            let line = buf[..pos].trim().to_string();
-            buf = buf[pos + 1..].to_string();
+        // Process complete SSE events (delimited by \n\n)
+        while let Some(pos) = buf.find("\n\n") {
+            let event = buf[..pos].to_string();
+            buf = buf[pos + 2..].to_string();
 
-            let Some(data) = line.strip_prefix("data: ") else { continue };
-            if data == "[DONE]" { break 'outer; }
+            for line in event.lines() {
+                let Some(data) = line.trim().strip_prefix("data: ") else { continue };
+                if data == "[DONE]" {
+                    break 'outer;
+                }
 
-            let Ok(json) = serde_json::from_str::<Value>(data) else { continue };
-            if let Some(content) = json["choices"][0]["delta"]["content"].as_str() {
-                if !content.is_empty() {
-                    app.emit(
-                        "chat-chunk",
-                        ChatChunkEvent { id: msg_id.clone(), content: content.to_string() },
-                    ).ok();
+                let Ok(json) = serde_json::from_str::<Value>(data) else { continue };
+                if let Some(content) = json["choices"][0]["delta"]["content"].as_str() {
+                    if !content.is_empty() {
+                        app.emit(
+                            "chat-chunk",
+                            ChatChunkEvent {
+                                id: msg_id.clone(),
+                                content: content.to_string(),
+                            },
+                        )
+                        .ok();
+                    }
                 }
             }
         }

@@ -1,18 +1,59 @@
-use std::{path::Path, sync::Mutex};
+use std::{
+    path::Path,
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
-use notify::{RecursiveMode, Watcher};
+use notify::{EventKind, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter, Manager};
 
-pub struct WatcherState(pub Mutex<Option<notify::RecommendedWatcher>>);
+pub struct WatcherState {
+    pub watcher: Mutex<Option<notify::RecommendedWatcher>>,
+    last_emit: Mutex<Instant>,
+}
+
+impl WatcherState {
+    pub fn new() -> Self {
+        Self {
+            watcher: Mutex::new(None),
+            last_emit: Mutex::new(Instant::now()),
+        }
+    }
+}
 
 #[tauri::command]
 pub fn start_watching(app: AppHandle, workspace_path: String) -> Result<(), String> {
     let app_clone = app.clone();
+    let ws_root = workspace_path.clone();
 
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if res.is_ok() {
-            let _ = app_clone.emit("fs-change", ());
+        let Ok(event) = res else { return };
+
+        // Skip non-content-change events (metadata-only, access, etc.)
+        let is_write = matches!(
+            event.kind,
+            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
+        );
+        if !is_write {
+            return;
         }
+
+        // Debounce: at most one emit per 500ms
+        let state = app_clone.state::<WatcherState>();
+        let mut last = state.last_emit.lock().unwrap();
+        if last.elapsed() < Duration::from_millis(500) {
+            return;
+        }
+
+        // Filter gitignored paths
+        if let Some(p) = event.paths.first() {
+            if is_gitignored(&ws_root, p) {
+                return;
+            }
+        }
+
+        *last = Instant::now();
+        let _ = app_clone.emit("fs-change", ());
     })
     .map_err(|e| e.to_string())?;
 
@@ -21,7 +62,7 @@ pub fn start_watching(app: AppHandle, workspace_path: String) -> Result<(), Stri
         .map_err(|e| e.to_string())?;
 
     let state = app.state::<WatcherState>();
-    *state.0.lock().map_err(|e| e.to_string())? = Some(watcher);
+    *state.watcher.lock().map_err(|e| e.to_string())? = Some(watcher);
 
     Ok(())
 }
@@ -29,6 +70,16 @@ pub fn start_watching(app: AppHandle, workspace_path: String) -> Result<(), Stri
 #[tauri::command]
 pub fn stop_watching(app: AppHandle) -> Result<(), String> {
     let state = app.state::<WatcherState>();
-    *state.0.lock().map_err(|e| e.to_string())? = None;
+    *state.watcher.lock().map_err(|e| e.to_string())? = None;
     Ok(())
+}
+
+fn is_gitignored(workspace_path: &str, file_path: &Path) -> bool {
+    let Ok(repo) = git2::Repository::open(workspace_path) else {
+        return false;
+    };
+    let Ok(rel) = file_path.strip_prefix(workspace_path) else {
+        return false;
+    };
+    repo.is_path_ignored(rel).unwrap_or(false)
 }

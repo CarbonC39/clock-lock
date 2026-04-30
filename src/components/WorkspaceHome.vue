@@ -29,6 +29,21 @@ watch(
         imageDataUrl.value = null;
       }
     }
+    if (path && workspace.path && workspace.selectedFileContent === null) {
+      try {
+        const relPath = path
+          .replace(workspace.path + "/", "")
+          .replace(workspace.path + "\\", "");
+        const annotations: Record<string, string> = await invoke("get_annotations", {
+          workspacePath: workspace.path,
+        });
+        if (annotations[relPath]) {
+          annotationNote.value = annotations[relPath];
+        }
+      } catch {
+        // ignore
+      }
+    }
   }
 );
 

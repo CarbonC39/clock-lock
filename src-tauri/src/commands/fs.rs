@@ -1,4 +1,8 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::Path,
+};
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager as _;
@@ -71,32 +75,41 @@ fn status_to_code(status: git2::Status) -> String {
     String::new()
 }
 
-fn build_status_map(workspace: &Path) -> HashMap<String, String> {
+fn build_status_map(workspace: &Path) -> (HashMap<String, String>, HashSet<String>) {
     let mut map = HashMap::new();
+    let mut ignored = HashSet::new();
     let Ok(repo) = git2::Repository::open(workspace) else {
-        return map;
+        return (map, ignored);
     };
 
     let mut opts = git2::StatusOptions::new();
-    opts.include_untracked(true).recurse_untracked_dirs(true);
+    opts.include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(true);
     let Ok(statuses) = repo.statuses(Some(&mut opts)) else {
-        return map;
+        return (map, ignored);
     };
 
     for entry in statuses.iter() {
         let Some(path) = entry.path() else { continue };
-        let code = status_to_code(entry.status());
-        if !code.is_empty() {
-            map.insert(path.replace('\\', "/"), code);
+        let s = entry.status();
+        if s.contains(git2::Status::IGNORED) {
+            ignored.insert(path.replace('\\', "/"));
+        } else {
+            let code = status_to_code(s);
+            if !code.is_empty() {
+                map.insert(path.replace('\\', "/"), code);
+            }
         }
     }
-    map
+    (map, ignored)
 }
 
 fn build_tree(
     base: &Path,
     dir: &Path,
     status_map: &HashMap<String, String>,
+    ignored: &HashSet<String>,
     depth: usize,
 ) -> Vec<FileNode> {
     if depth > 8 {
@@ -131,11 +144,15 @@ fn build_tree(
             .map(|p| p.to_string_lossy().replace('\\', "/"))
             .unwrap_or_default();
 
+        if ignored.contains(&rel) {
+            continue;
+        }
+
         let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
         let git_status = status_map.get(&rel).cloned();
 
         let children = if is_dir {
-            Some(build_tree(base, &path, status_map, depth + 1))
+            Some(build_tree(base, &path, status_map, ignored, depth + 1))
         } else {
             None
         };
@@ -160,8 +177,8 @@ pub fn list_dir(workspace_path: String) -> Result<Vec<FileNode>, String> {
     if !workspace.is_dir() {
         return Err(format!("Not a directory: {workspace_path}"));
     }
-    let status_map = build_status_map(workspace);
-    Ok(build_tree(workspace, workspace, &status_map, 0))
+    let (status_map, ignored) = build_status_map(workspace);
+    Ok(build_tree(workspace, workspace, &status_map, &ignored, 0))
 }
 
 #[tauri::command]
@@ -178,6 +195,34 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     fs::write(&path, content).map_err(|e| e.to_string())
+}
+
+/// Writes a file after backing up the current version to .clocklock/drafts/
+#[tauri::command]
+pub fn write_file_with_backup(
+    app: tauri::AppHandle,
+    workspace_path: String,
+    file_path: String,
+    content: String,
+) -> Result<(), String> {
+    let file = Path::new(&file_path);
+    if file.exists() {
+        let filename = file.file_name().unwrap_or_default().to_string_lossy();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let data_dir = workspace_data_dir(&app, &workspace_path)?;
+        let drafts_dir = data_dir.join("drafts");
+        fs::create_dir_all(&drafts_dir).map_err(|e| e.to_string())?;
+        let backup_path = drafts_dir.join(format!("{filename}.{timestamp}.bak"));
+        fs::copy(file, &backup_path).map_err(|e| e.to_string())?;
+    }
+
+    if let Some(parent) = file.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(file, content).map_err(|e| e.to_string())
 }
 
 /// Ensures home.md exists in the app-data workspace dir. Returns its path and content.

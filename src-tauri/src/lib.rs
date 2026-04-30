@@ -4,7 +4,7 @@ mod watcher;
 use commands::agent::chat_stream;
 use commands::fs::{
     ensure_home_md, get_annotations, get_git_status, get_last_workspace, list_dir, read_file,
-    read_image_b64, save_annotation, set_last_workspace, write_file,
+    read_image_b64, save_annotation, set_last_workspace, write_file, write_file_with_backup,
 };
 use commands::settings::{get_settings, save_settings};
 use commands::shell::{classify_command, run_command};
@@ -13,7 +13,7 @@ use watcher::{start_watching, stop_watching, WatcherState};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(WatcherState(std::sync::Mutex::new(None)))
+        .manage(WatcherState::new())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -26,6 +26,7 @@ pub fn run() {
             read_file,
             read_image_b64,
             write_file,
+            write_file_with_backup,
             ensure_home_md,
             get_git_status,
             save_annotation,

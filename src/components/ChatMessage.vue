@@ -3,32 +3,38 @@ import { computed } from "vue";
 import { marked } from "marked";
 import type { ChatMessage } from "../stores/agentStore";
 import BashBlock from "./BashBlock.vue";
+import DiffView from "./DiffView.vue";
 
 marked.setOptions({ gfm: true, breaks: true });
 
 const props = defineProps<{ message: ChatMessage }>();
 
-// Split content into markdown segments and bash blocks
 interface Segment {
-  type: "markdown" | "bash";
+  type: "markdown" | "bash" | "diff";
   content: string;
 }
 
-const BASH_PATTERN = /```(?:bash|sh|shell|zsh|powershell|cmd)\n([\s\S]*?)```/g;
+const BLOCK_RE = /```(bash|sh|shell|zsh|powershell|cmd|diff)\n([\s\S]*?)```/g;
 
 const segments = computed((): Segment[] => {
   if (props.message.role !== "assistant") return [];
   const result: Segment[] = [];
   const text = props.message.content;
   let lastIndex = 0;
-  BASH_PATTERN.lastIndex = 0;
+  const re = new RegExp(BLOCK_RE.source, BLOCK_RE.flags);
   let match: RegExpExecArray | null;
 
-  while ((match = BASH_PATTERN.exec(text)) !== null) {
+  while ((match = re.exec(text)) !== null) {
     if (match.index > lastIndex) {
       result.push({ type: "markdown", content: text.slice(lastIndex, match.index) });
     }
-    result.push({ type: "bash", content: match[1].trim() });
+    const lang = match[1];
+    const body = match[2].trim();
+    if (lang === "diff") {
+      result.push({ type: "diff", content: body });
+    } else {
+      result.push({ type: "bash", content: body });
+    }
     lastIndex = match.index + match[0].length;
   }
 
@@ -67,6 +73,7 @@ function renderMd(src: string): string {
       <template v-else>
         <template v-for="(seg, i) in segments" :key="i">
           <BashBlock v-if="seg.type === 'bash'" :command="seg.content" />
+          <DiffView v-else-if="seg.type === 'diff'" :diff-text="seg.content" />
           <div
             v-else
             class="md-segment markdown-body"
