@@ -1,20 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, type Component } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import {
-  ChevronRight,
-  Folder,
-  FolderOpen,
-  FileText,
-  FileCode,
-  FileImage,
-  FileVideo,
-  FileAudio,
-  File,
-  Settings,
-  Globe,
-  Database,
-  Package,
-  FileJson,
+  ChevronRight, Folder, FolderOpen, FileText, FileCode,
+  FileImage, FileVideo, FileAudio, File, Settings, Globe,
+  Database, Package, FileJson, FolderSearch, ExternalLink,
 } from "lucide-vue-next";
 import type { FileNode } from "../stores/workspaceStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -26,12 +16,38 @@ const props = defineProps<{ node: FileNode; depth?: number }>();
 const workspace = useWorkspaceStore();
 const isOpen = ref(!props.node.name.startsWith(".") && (props.depth ?? 0) === 0);
 
+const ctxMenu = ref<{ x: number; y: number } | null>(null);
+
 function toggle() {
   if (props.node.is_dir) isOpen.value = !isOpen.value;
 }
 
 function select() {
   if (!props.node.is_dir) workspace.selectFile(props.node.path);
+}
+
+function onContextMenu(e: MouseEvent) {
+  e.preventDefault();
+  ctxMenu.value = { x: e.clientX, y: e.clientY };
+  document.addEventListener("click", closeCtx, { once: true });
+}
+
+function closeCtx() {
+  ctxMenu.value = null;
+}
+
+function openInExplorer() {
+  closeCtx();
+  invoke("open_in_explorer", { path: props.node.path }).catch(console.warn);
+}
+
+function openFile() {
+  closeCtx();
+  if (props.node.is_dir) {
+    invoke("open_in_explorer", { path: props.node.path }).catch(console.warn);
+  } else {
+    workspace.selectFile(props.node.path);
+  }
 }
 
 const fileIconComponent = computed<Component>(() => {
@@ -73,11 +89,7 @@ const iconColor = computed<string>(() => {
   return "var(--color-text-muted)";
 });
 
-const gitClass: Record<string, string> = {
-  M: "git-M",
-  A: "git-A",
-  D: "git-D",
-};
+const gitClass: Record<string, string> = { M: "git-M", A: "git-A", D: "git-D" };
 </script>
 
 <template>
@@ -90,6 +102,7 @@ const gitClass: Record<string, string> = {
       ]"
       :style="{ paddingLeft: `${(depth ?? 0) * 14 + 6}px` }"
       @click="node.is_dir ? toggle() : select()"
+      @contextmenu="onContextMenu"
     >
       <ChevronRight
         v-if="node.is_dir"
@@ -114,6 +127,29 @@ const gitClass: Record<string, string> = {
         :class="gitClass[node.git_status] ?? 'git-M'"
       >{{ node.git_status }}</span>
     </div>
+
+    <!-- Context menu -->
+    <Teleport to="body">
+      <div
+        v-if="ctxMenu"
+        class="ctx-menu-overlay"
+        @click="closeCtx"
+      />
+      <div
+        v-if="ctxMenu"
+        class="ctx-menu"
+        :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+      >
+        <button class="ctx-item" @click="openFile">
+          <ExternalLink :size="11" />
+          {{ node.is_dir ? 'Open folder' : 'Open file' }}
+        </button>
+        <button class="ctx-item" @click="openInExplorer">
+          <FolderSearch :size="11" />
+          Reveal in Explorer
+        </button>
+      </div>
+    </Teleport>
 
     <template v-if="node.is_dir && isOpen && node.children">
       <FileTreeNode
@@ -192,4 +228,47 @@ const gitClass: Record<string, string> = {
 .git-M { color: var(--git-modified); background: color-mix(in srgb, var(--git-modified) 15%, transparent); }
 .git-A { color: var(--git-added);    background: color-mix(in srgb, var(--git-added)    15%, transparent); }
 .git-D { color: var(--git-deleted);  background: color-mix(in srgb, var(--git-deleted)  15%, transparent); }
+
+/* ── Context menu ── */
+.ctx-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ctx-item:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
 </style>

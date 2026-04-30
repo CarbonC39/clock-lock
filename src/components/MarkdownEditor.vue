@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch, nextTick } from "vue";
+import { reactive, watch, nextTick, ref } from "vue";
 import { marked } from "marked";
 import { Pencil, Plus, X } from "lucide-vue-next";
 
@@ -151,6 +151,50 @@ function onRemoveTask(si: number, ti: number) {
   emitContent();
 }
 
+// ── Inline task editing ──
+const editingTask = ref<{ si: number; ti: number; text: string } | null>(null);
+
+function startEditTask(si: number, ti: number) {
+  const tasks = getTasks(sections[si].body);
+  if (ti >= tasks.length) return;
+  editingTask.value = { si, ti, text: tasks[ti].text };
+  nextTick(() => {
+    const inp = document.querySelector<HTMLInputElement>(".task-edit-input");
+    inp?.focus();
+    inp?.select();
+  });
+}
+
+function finishEditTask() {
+  if (!editingTask.value) return;
+  const { si, ti, text } = editingTask.value;
+  editingTask.value = null;
+  if (text !== getTasks(sections[si].body)[ti]?.text) {
+    sections[si].body = updateTaskText(sections[si].body, ti, text);
+    emitContent();
+  }
+}
+
+function cancelEditTask() {
+  editingTask.value = null;
+}
+
+function updateTaskText(body: string, index: number, newText: string): string {
+  const lines = body.split("\n");
+  let count = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^- \[[ x]\]/.test(lines[i])) {
+      if (count === index) {
+        const checked = lines[i].startsWith("- [x]");
+        lines[i] = `${checked ? "- [x]" : "- [ ]"} ${newText}`;
+        break;
+      }
+      count++;
+    }
+  }
+  return lines.join("\n");
+}
+
 // ── Edit mode ──
 function startEdit(si: number) {
   const section = sections[si];
@@ -227,7 +271,21 @@ function cancelEdit(si: number) {
               >
                 <span v-if="task.checked" class="check-mark" />
               </button>
-              <span class="task-text">{{ task.text || "…" }}</span>
+              <!-- Inline edit -->
+              <input
+                v-if="editingTask && editingTask.si === si && editingTask.ti === ti"
+                v-model="editingTask.text"
+                class="task-edit-input"
+                @blur="finishEditTask"
+                @keydown.enter="finishEditTask"
+                @keydown.escape="cancelEditTask"
+                @click.stop
+              />
+              <span
+                v-else
+                class="task-text"
+                @dblclick="startEditTask(si, ti)"
+              >{{ task.text || "…" }}</span>
               <button
                 class="task-remove"
                 title="Remove"
@@ -407,9 +465,23 @@ function cancelEdit(si: number) {
 .task-text {
   flex: 1;
   color: var(--color-text-secondary);
-  min-height: 20px;
+  min-height: 22px;
   line-height: 1.5;
   word-break: break-word;
+}
+
+.task-edit-input {
+  flex: 1;
+  padding: 2px 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent-blue);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  outline: none;
+  min-width: 0;
 }
 
 .task-remove {

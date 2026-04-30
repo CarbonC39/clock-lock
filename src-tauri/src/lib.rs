@@ -6,8 +6,8 @@ mod watcher;
 use commands::agent::chat_stream;
 use commands::fs::{
     ensure_home_md, get_annotations, get_git_status, get_last_workspace, get_workspace_hash,
-    list_dir, read_file, read_image_b64, save_annotation, set_last_workspace, write_file,
-    write_file_with_backup,
+    list_dir, open_in_explorer, read_file, read_image_b64, save_annotation, set_last_workspace,
+    write_file, write_file_with_backup,
 };
 use commands::memory::{
     clear_conversation, ensure_conversation, get_events, load_messages, log_event,
@@ -50,6 +50,7 @@ pub fn run() {
             get_last_workspace,
             set_last_workspace,
             get_workspace_hash,
+            open_in_explorer,
             // watcher
             start_watching,
             stop_watching,

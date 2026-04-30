@@ -372,3 +372,37 @@ pub fn get_last_workspace(app: tauri::AppHandle) -> Option<String> {
 pub fn get_workspace_hash(workspace_path: String) -> String {
     workspace_hash(&workspace_path)
 }
+
+/// Opens a file or folder in the OS file explorer.
+#[tauri::command]
+pub fn open_in_explorer(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if cfg!(target_os = "windows") {
+        std::process::Command::new("explorer")
+            .arg("/select,")
+            .arg(p)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    } else if cfg!(target_os = "macos") {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(p)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    } else {
+        if p.is_dir() {
+            std::process::Command::new("xdg-open")
+                .arg(p)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else {
+            if let Some(parent) = p.parent() {
+                std::process::Command::new("xdg-open")
+                    .arg(parent)
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok(())
+}
