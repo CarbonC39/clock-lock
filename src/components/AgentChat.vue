@@ -142,7 +142,7 @@ function onKeydown(e: KeyboardEvent) {
   align-items: center;
   gap: 8px;
   height: 36px;
-  padding: 0 8px 0 12px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }

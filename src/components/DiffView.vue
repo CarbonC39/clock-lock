@@ -178,7 +178,7 @@ function cancel() {
           v-for="(line, li) in hunk.lines"
           :key="`${hi}-${li}`"
           class="diff-line"
-          :class="`diff-${line.type}`"
+          :class="`diff-${line.type === 'header' ? 'hunk-header' : line.type}`"
         >
           <span v-if="line.type === 'header'" class="line-num">&nbsp;</span>
           <span v-else-if="line.type === 'add'" class="line-num">+</span>
@@ -316,7 +316,7 @@ function cancel() {
   color: color-mix(in srgb, var(--color-accent-red) 85%, var(--color-text-primary));
 }
 
-.diff-header {
+.diff-hunk-header {
   background: color-mix(in srgb, var(--color-accent-purple) 8%, transparent);
   color: var(--color-accent-purple);
   font-weight: 600;

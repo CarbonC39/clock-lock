@@ -233,11 +233,11 @@ function cancelEdit(si: number) {
                 title="Remove"
                 @click="onRemoveTask(si, ti)"
               >
-                <X :size="8" />
+                <X :size="11" />
               </button>
             </div>
-            <button class="task-add" @click="onAddTask(si)">
-              <Plus :size="10" /> Add task
+            <button class="task-add" title="Add task" @click="onAddTask(si)">
+              <Plus :size="14" />
             </button>
           </div>
         </template>
@@ -350,21 +350,24 @@ function cancelEdit(si: number) {
 
 /* ── Task block ── */
 .task-block {
-  margin-top: 6px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .task-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 6px;
-  border-radius: var(--radius-sm);
+  padding: 6px 8px;
   transition: background-color var(--transition);
   font-size: 13px;
+  border-bottom: 1px solid var(--color-border);
 }
+.task-row:last-of-type { border-bottom: none; }
 .task-row:hover {
   background: color-mix(in srgb, var(--color-accent-blue) 4%, transparent);
 }
@@ -419,12 +422,12 @@ function cancelEdit(si: number) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   background: none;
   border: 1px solid transparent;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   cursor: pointer;
   opacity: 0;
@@ -439,25 +442,22 @@ function cancelEdit(si: number) {
 
 /* ── Add task button ── */
 .task-add {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  align-self: flex-start;
-  padding: 3px 8px;
-  margin-top: 4px;
+  justify-content: center;
+  width: 100%;
+  padding: 5px;
   font-size: 11px;
-  font-weight: 600;
   background: none;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-sm);
+  border: none;
+  border-top: 1px solid var(--color-border);
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all var(--transition);
 }
 .task-add:hover {
-  border-color: var(--color-accent-blue);
   color: var(--color-accent-blue);
-  background: color-mix(in srgb, var(--color-accent-blue) 5%, transparent);
+  background: color-mix(in srgb, var(--color-accent-blue) 6%, transparent);
 }
 
 /* ── Edit mode ── */

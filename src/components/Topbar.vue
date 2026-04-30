@@ -204,7 +204,7 @@ async function close() { await win.close(); }
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: background-color 0.1s ease, color 0.1s ease;
+  transition: background-color var(--transition), color var(--transition);
   border-radius: 0;
 }
 
@@ -213,12 +213,8 @@ async function close() { await win.close(); }
   color: var(--color-text-primary);
 }
 
-.win-close {
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
 .win-close:hover {
   background-color: #c0392b;
-  color: #fff;
+  color: var(--color-bg);
 }
 </style>
