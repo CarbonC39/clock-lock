@@ -17,7 +17,7 @@ const appWindow = getCurrentWindow();
 let savedSize = { w: 1200, h: 760 };
 
 const WIDGET_W = 240;
-const WIDGET_H = 400;
+const WIDGET_H = 360;
 
 async function toggleWidget() {
   if (widgetMode.value) {
@@ -35,7 +35,6 @@ async function enterWidgetMode() {
 
   widgetMode.value = true;
   await appWindow.setAlwaysOnTop(true);
-  await appWindow.setResizable(false);
   await appWindow.setMinSize(new LogicalSize(WIDGET_W, WIDGET_H));
   await appWindow.setSize(new LogicalSize(WIDGET_W, WIDGET_H));
 }
@@ -43,7 +42,6 @@ async function enterWidgetMode() {
 async function restoreFromWidget() {
   widgetMode.value = false;
   await appWindow.setAlwaysOnTop(false);
-  await appWindow.setResizable(true);
   await appWindow.setMinSize(new LogicalSize(720, 500));
   await appWindow.setSize(new LogicalSize(savedSize.w, savedSize.h));
 }

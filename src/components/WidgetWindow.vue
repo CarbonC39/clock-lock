@@ -6,9 +6,12 @@ import {
   MessageCircle,
   SendHorizonal,
 } from "lucide-vue-next";
+import { marked } from "marked";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAgentStore } from "../stores/agentStore";
 import AgentPet from "./AgentPet.vue";
+
+marked.setOptions({ gfm: true, breaks: true });
 
 const emit = defineEmits<{ restore: [] }>();
 
@@ -140,6 +143,11 @@ function addTask() {
 }
 
 // ── Chat ──
+
+function renderMd(src: string): string {
+  if (!src.trim()) return "";
+  return marked.parse(src) as string;
+}
 
 const displayMessages = computed(() =>
   agent.messages
@@ -283,10 +291,15 @@ function onChatKeydown(e: KeyboardEvent) {
           class="chat-msg"
           :class="m.role"
         >
-          <span class="msg-text">
-            {{ m.content || (m.isStreaming ? "···" : "") }}
-          </span>
-          <span v-if="m.isStreaming" class="stream-cursor">▌</span>
+          <span
+            v-if="m.isStreaming"
+            class="msg-text"
+          >{{ m.content || "···" }}<span class="stream-cursor">▌</span></span>
+          <span
+            v-else
+            class="msg-text md-body"
+            v-html="renderMd(m.content)"
+          />
         </div>
       </div>
 
@@ -319,6 +332,17 @@ function onChatKeydown(e: KeyboardEvent) {
   background: var(--color-bg);
   font-size: 13px;
   user-select: none;
+  -webkit-app-region: drag;
+}
+
+/* Interactive elements override */
+.action-btn,
+.back-btn,
+.task-cb,
+.chat-send,
+.add-input,
+.chat-input-box {
+  -webkit-app-region: no-drag;
 }
 
 /* ═══════ Companion view ═══════ */
@@ -561,6 +585,18 @@ function onChatKeydown(e: KeyboardEvent) {
 }
 
 .msg-text { white-space: pre-wrap; }
+
+.md-body :deep(p) { margin: 0; }
+.md-body :deep(p + p) { margin-top: 0.3em; }
+.md-body :deep(code) {
+  font-size: 0.88em;
+  background: color-mix(in srgb, var(--color-accent-pink) 8%, transparent);
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+}
+.md-body :deep(pre) { font-size: 0.85em; margin: 0.2em 0; overflow-x: auto; }
+.md-body :deep(pre code) { background: none; padding: 0; }
+.md-body :deep(ul), .md-body :deep(ol) { padding-left: 1.2em; margin: 0.1em 0; }
 
 .stream-cursor {
   display: inline-block;
