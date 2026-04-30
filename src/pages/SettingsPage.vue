@@ -4,10 +4,12 @@ import { useRouter } from "vue-router";
 import { ArrowLeft, Cloud, Server, Check, Sun, Moon, Monitor } from "lucide-vue-next";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useUiStore } from "../stores/uiStore";
+import { useSupervisionStore } from "../stores/supervisionStore";
 
 const router = useRouter();
 const store = useSettingsStore();
 const ui = useUiStore();
+const sv = useSupervisionStore();
 
 const saved = ref(false);
 const showKey = ref(false);
@@ -154,6 +156,39 @@ async function save() {
               >
                 <span class="toggle-knob" />
               </button>
+            </div>
+          </section>
+
+          <!-- Supervision -->
+          <section class="section">
+            <h2 class="section-title">Supervision</h2>
+
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-label">Do Not Disturb</span>
+                <span class="toggle-hint">Suppress idle check-ins and notifications.</span>
+              </div>
+              <button
+                class="toggle-btn"
+                :class="{ on: !sv.dnd }"
+                @click="sv.setDnd(!sv.dnd)"
+              >
+                <span class="toggle-knob" />
+              </button>
+            </div>
+
+            <div class="field-group" style="margin-top: 12px">
+              <label class="field-label">Idle check-in threshold (hours)</label>
+              <input
+                v-model.number="sv.idleHours"
+                class="field-input"
+                type="number"
+                min="1"
+                max="720"
+                step="1"
+                @change="sv.setIdleHours(sv.idleHours)"
+              />
+              <p class="field-hint">After this many hours of inactivity, the agent will check in on you.</p>
             </div>
           </section>
         </div>

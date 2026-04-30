@@ -1,25 +1,20 @@
 <script setup lang="ts">
-import { ref, nextTick, watch } from "vue";
+import { ref, nextTick, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { SendHorizonal, Settings2, Trash2 } from "lucide-vue-next";
 import { useAgentStore } from "../stores/agentStore";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useSupervisionStore } from "../stores/supervisionStore";
 import ChatMessage from "./ChatMessage.vue";
+import AgentPet from "./AgentPet.vue";
 
 const router = useRouter();
 const agent = useAgentStore();
 const settings = useSettingsStore();
+const sv = useSupervisionStore();
 
 const inputText = ref("");
 const messagesEl = ref<HTMLDivElement>();
-
-const petFace: Record<string, string> = {
-  idle:     "(・ω・)",
-  thinking: "(・・ )  ···",
-  happy:    "(＾▽＾)",
-  sleepy:   "(-.-) zzz",
-  excited:  "(*ﾟ▽ﾟ*)",
-};
 
 function scrollToBottom() {
   nextTick(() => {
@@ -40,6 +35,7 @@ async function send() {
   if (!text || agent.isBusy) return;
   inputText.value = "";
   await agent.sendMessage(text);
+  sv.reportActivity();
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -48,13 +44,17 @@ function onKeydown(e: KeyboardEvent) {
     send();
   }
 }
+
+onMounted(() => {
+  sv.start();
+});
 </script>
 
 <template>
   <div class="agent-chat">
     <!-- ── Header ── -->
     <div class="panel-header">
-      <span class="pet-face">{{ petFace[agent.state] }}</span>
+      <AgentPet :state="agent.state" size="sm" />
       <span class="panel-title">Agent</span>
       <div class="header-actions">
         <button
@@ -79,7 +79,7 @@ function onKeydown(e: KeyboardEvent) {
     <div ref="messagesEl" class="messages">
       <!-- Intro when empty -->
       <div v-if="!agent.messages.length" class="intro">
-        <p class="pet-large">{{ petFace[agent.state] }}</p>
+        <AgentPet :state="agent.state" size="lg" />
         <p class="intro-text">
           Hi! I'm your AI workspace companion.<br>
           Open a workspace and ask me anything about your project.
@@ -147,14 +147,6 @@ function onKeydown(e: KeyboardEvent) {
   flex-shrink: 0;
 }
 
-.pet-face {
-  font-size: 12px;
-  color: var(--color-accent-purple);
-  font-family: var(--font-mono);
-  flex-shrink: 0;
-  min-width: 80px;
-}
-
 .panel-title {
   font-size: 11px;
   font-weight: 600;
@@ -206,13 +198,6 @@ function onKeydown(e: KeyboardEvent) {
   gap: 10px;
   text-align: center;
   padding: 20px;
-}
-
-.pet-large {
-  font-size: 22px;
-  color: var(--color-accent-purple);
-  font-family: var(--font-mono);
-  margin: 0;
 }
 
 .intro-text {

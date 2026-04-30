@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod supervision;
 mod watcher;
 
 use commands::agent::chat_stream;
@@ -14,12 +15,17 @@ use commands::memory::{
 };
 use commands::settings::{get_settings, save_settings};
 use commands::shell::{classify_command, run_command};
+use supervision::{
+    configure_supervision, report_activity, start_supervision, stop_supervision,
+    SupervisionState,
+};
 use watcher::{start_watching, stop_watching, WatcherState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(WatcherState::new())
+        .manage(SupervisionState::new())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -59,6 +65,11 @@ pub fn run() {
             clear_conversation,
             log_event,
             get_events,
+            // supervision
+            report_activity,
+            configure_supervision,
+            start_supervision,
+            stop_supervision,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
