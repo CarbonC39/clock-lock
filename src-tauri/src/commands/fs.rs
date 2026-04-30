@@ -38,7 +38,7 @@ const BINARY_EXTS: &[&str] = &[
 ];
 
 /// Deterministic djb2 hash of a workspace path → 16-char hex folder name
-fn workspace_hash(path: &str) -> String {
+pub fn workspace_hash(path: &str) -> String {
     let mut h: u64 = 5381;
     for b in path.bytes() {
         h = h.wrapping_mul(33).wrapping_add(b as u64);
@@ -365,4 +365,10 @@ pub fn get_last_workspace(app: tauri::AppHandle) -> Option<String> {
     let raw = fs::read_to_string(base.join("last_workspace.txt")).ok()?;
     let p = raw.trim().to_string();
     if p.is_empty() || !Path::new(&p).is_dir() { None } else { Some(p) }
+}
+
+/// Returns the djb2 hash for a workspace path (used as the per-workspace DB key).
+#[tauri::command]
+pub fn get_workspace_hash(workspace_path: String) -> String {
+    workspace_hash(&workspace_path)
 }

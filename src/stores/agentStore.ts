@@ -20,13 +20,55 @@ export const useAgentStore = defineStore("agent", () => {
   const messages = ref<ChatMessage[]>([]);
   const state = ref<AgentState>("idle");
   const isBusy = ref(false);
+  const convId = ref<string | null>(null);
 
-  function setState(s: AgentState) { state.value = s; }
+  // ── Conversation lifecycle ──
 
-  function buildSystemPrompt(): string {
+  async function loadConversation() {
+    const workspace = useWorkspaceStore();
+    if (!workspace.hash) return;
+
+    convId.value = await invoke<string>("ensure_conversation", {
+      workspaceHash: workspace.hash,
+    });
+
+    const records = await invoke<
+      { id: number; role: string; content: string }[]
+    >("load_messages", {
+      workspaceHash: workspace.hash,
+      convId: convId.value,
+      limit: 100,
+    });
+
+    messages.value = records.map((r) => ({
+      id: `db-${r.id}`,
+      role: r.role as ChatMessage["role"],
+      content: r.content,
+      timestamp: Date.now(),
+    }));
+  }
+
+  async function persistMessage(msg: ChatMessage) {
+    const workspace = useWorkspaceStore();
+    if (!workspace.hash || !convId.value) return;
+    await invoke("save_message", {
+      workspaceHash: workspace.hash,
+      convId: convId.value,
+      role: msg.role,
+      content: msg.content,
+    }).catch(console.warn);
+  }
+
+  // ── System prompt (enhanced with M5 context) ──
+
+  async function buildSystemPrompt(): Promise<{
+    role: string;
+    content: string;
+  }> {
     const workspace = useWorkspaceStore();
     const settings = useSettingsStore();
-    const personality = settings.settings.personality || "helpful and encouraging senior developer";
+    const personality =
+      settings.settings.personality || "helpful and encouraging senior developer";
 
     let prompt = `You are an AI developer companion integrated into Clock Lock.
 Your personality: ${personality}.
@@ -34,30 +76,65 @@ Your personality: ${personality}.
 Guidelines:
 - Be concise and practical. Aim for short responses unless depth is needed.
 - When suggesting shell commands, wrap them in \`\`\`bash code blocks so they can be run directly.
+- When proposing file edits, wrap them in \`\`\`diff code blocks with --- a/ and +++ b/ headers.
 - Critique the problem or the code — never the developer.
-- Add a brief word of encouragement with technical feedback.
-- If proposing file edits, describe them clearly.`;
+- Add a brief word of encouragement with technical feedback.`;
 
+    // Inject project context (home.md)
     if (workspace.homeMdContent?.trim()) {
-      prompt += `\n\n## Project context\n${workspace.homeMdContent.slice(0, 3000)}`;
+      prompt += `\n\n## Project context\n${workspace.homeMdContent.slice(0, 4000)}`;
     }
 
-    return prompt;
+    // Inject git status
+    if (workspace.path) {
+      try {
+        const git = await invoke<{
+          is_repo: boolean;
+          branch?: string;
+          modified: number;
+          added: number;
+          deleted: number;
+          untracked: number;
+        }>("get_git_status", { workspacePath: workspace.path });
+        if (git.is_repo) {
+          prompt += `\n\n## Git status\nBranch: ${git.branch ?? "HEAD"}
+Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untracked: ${git.untracked}`;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Inject relevant past messages (FTS search against recent user query)
+    if (workspace.hash && messages.value.length > 0) {
+      try {
+        const lastUserMsg = [...messages.value]
+          .reverse()
+          .find((m) => m.role === "user");
+        if (lastUserMsg) {
+          const results = await invoke<
+            { id: number; role: string; content: string }[]
+          >("search_messages", {
+            workspaceHash: workspace.hash,
+            query: lastUserMsg.content.slice(0, 200),
+            limit: 3,
+          });
+          if (results.length > 0) {
+            prompt += "\n\n## Related past context";
+            for (const r of results) {
+              prompt += `\n[${r.role}]: ${r.content.slice(0, 500)}`;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return { role: "system", content: prompt };
   }
 
-  function buildApiMessages() {
-    const settings = useSettingsStore();
-    const history = messages.value
-      .filter(m => m.role === "user" || m.role === "assistant")
-      .filter(m => !m.isStreaming && !m.error)
-      .slice(-settings.settings.max_context_messages)
-      .map(m => ({ role: m.role, content: m.content }));
-
-    return [
-      { role: "system", content: buildSystemPrompt() },
-      ...history,
-    ];
-  }
+  // ── Chat ──
 
   async function sendMessage(text: string) {
     if (!text.trim() || isBusy.value) return;
@@ -68,30 +145,30 @@ Guidelines:
       return;
     }
 
-    // Add user message
-    messages.value.push({
+    const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: text.trim(),
       timestamp: Date.now(),
-    });
+    };
+    messages.value.push(userMsg);
+    persistMessage(userMsg);
 
-    // Add placeholder assistant message
     const assistantId = crypto.randomUUID();
-    messages.value.push({
+    const assistantMsg: ChatMessage = {
       id: assistantId,
       role: "assistant",
       content: "",
       timestamp: Date.now(),
       isStreaming: true,
-    });
+    };
+    messages.value.push(assistantMsg);
 
     isBusy.value = true;
     state.value = "thinking";
 
-    const assistant = messages.value.find(m => m.id === assistantId)!;
+    const assistant = messages.value.find((m) => m.id === assistantId)!;
 
-    // Subscribe to streaming chunks
     const unlistenChunk = await listen<{ id: string; content: string }>(
       "chat-chunk",
       (event) => {
@@ -112,16 +189,31 @@ Guidelines:
     );
 
     try {
+      const systemMsg = await buildSystemPrompt();
+      const history = messages.value
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .filter((m) => !m.isStreaming && !m.error && m.id !== assistantId)
+        .slice(-settings.settings.max_context_messages)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       await invoke("chat_stream", {
         msgId: assistantId,
-        messages: buildApiMessages(),
+        messages: [systemMsg, ...history],
         baseUrl: settings.settings.base_url,
         apiKey: settings.settings.api_key,
         model: settings.settings.model,
         maxTokens: settings.settings.max_tokens,
       });
+
+      persistMessage({
+        ...assistant,
+        id: assistantId,
+        timestamp: Date.now(),
+      });
       state.value = "happy";
-      setTimeout(() => { if (state.value === "happy") state.value = "idle"; }, 4000);
+      setTimeout(() => {
+        if (state.value === "happy") state.value = "idle";
+      }, 4000);
     } catch (e) {
       assistant.content = assistant.content || `Error: ${e}`;
       assistant.error = String(e);
@@ -135,19 +227,27 @@ Guidelines:
   }
 
   function pushNote(text: string) {
-    messages.value.push({
+    const note: ChatMessage = {
       id: crypto.randomUUID(),
       role: "system-note",
       content: text,
       timestamp: Date.now(),
-    });
+    };
+    messages.value.push(note);
   }
 
   function clear() {
+    const workspace = useWorkspaceStore();
+    if (workspace.hash && convId.value) {
+      invoke("clear_conversation", {
+        workspaceHash: workspace.hash,
+        convId: convId.value,
+      }).catch(console.warn);
+    }
     messages.value = [];
     state.value = "idle";
     isBusy.value = false;
   }
 
-  return { messages, state, isBusy, setState, sendMessage, clear };
+  return { messages, state, isBusy, sendMessage, pushNote, clear, loadConversation };
 });

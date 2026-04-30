@@ -30,6 +30,16 @@ async function run() {
   runState.value = "running";
   stdout.value = "";
   stderr.value = "";
+
+  // Log user-approved bash runs (skip auto-runs)
+  if (!didAutoRun.value && workspace.hash) {
+    invoke("log_event", {
+      workspaceHash: workspace.hash,
+      eventType: "bash-run",
+      description: `Ran: ${props.command}`,
+    }).catch(() => {});
+  }
+
   try {
     const result = await invoke<{ stdout: string; stderr: string; success: boolean; blocked: boolean }>(
       "run_command",

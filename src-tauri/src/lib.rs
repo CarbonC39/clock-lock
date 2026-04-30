@@ -1,10 +1,16 @@
 mod commands;
+mod db;
 mod watcher;
 
 use commands::agent::chat_stream;
 use commands::fs::{
-    ensure_home_md, get_annotations, get_git_status, get_last_workspace, list_dir, read_file,
-    read_image_b64, save_annotation, set_last_workspace, write_file, write_file_with_backup,
+    ensure_home_md, get_annotations, get_git_status, get_last_workspace, get_workspace_hash,
+    list_dir, read_file, read_image_b64, save_annotation, set_last_workspace, write_file,
+    write_file_with_backup,
+};
+use commands::memory::{
+    clear_conversation, ensure_conversation, get_events, load_messages, log_event,
+    save_message, search_messages,
 };
 use commands::settings::{get_settings, save_settings};
 use commands::shell::{classify_command, run_command};
@@ -33,6 +39,7 @@ pub fn run() {
             get_annotations,
             get_last_workspace,
             set_last_workspace,
+            get_workspace_hash,
             // watcher
             start_watching,
             stop_watching,
@@ -44,6 +51,14 @@ pub fn run() {
             // shell
             classify_command,
             run_command,
+            // memory
+            ensure_conversation,
+            save_message,
+            load_messages,
+            search_messages,
+            clear_conversation,
+            log_event,
+            get_events,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { useAgentStore } from "./agentStore";
 
 export interface FileNode {
   name: string;
@@ -14,6 +15,7 @@ export interface FileNode {
 export const useWorkspaceStore = defineStore("workspace", () => {
   const path = ref<string | null>(null);
   const name = ref<string | null>(null);
+  const hash = ref<string | null>(null);
   const fileTree = ref<FileNode[]>([]);
   const homeMdPath = ref<string | null>(null);
   const homeMdContent = ref<string>("");
@@ -29,21 +31,21 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   async function loadWorkspace(dirPath: string) {
     isLoading.value = true;
-    // Clear stale state so editor doesn't mount until new content is ready
     homeMdPath.value = null;
     homeMdContent.value = "";
     selectedFilePath.value = null;
     selectedFileContent.value = null;
 
     try {
-      const [tree, [mdPath, mdContent]] = await Promise.all([
+      const [tree, [mdPath, mdContent], wsHash] = await Promise.all([
         invoke<FileNode[]>("list_dir", { workspacePath: dirPath }),
         invoke<[string, string]>("ensure_home_md", { workspacePath: dirPath }),
+        invoke<string>("get_workspace_hash", { workspacePath: dirPath }),
       ]);
       fileTree.value = tree;
       homeMdPath.value = mdPath;
       homeMdContent.value = mdContent;
-      // Set path last so MarkdownEditor mounts with correct content
+      hash.value = wsHash;
       name.value = dirPath.replace(/\\/g, "/").split("/").pop() ?? dirPath;
       path.value = dirPath;
     } finally {
@@ -52,6 +54,10 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
     invoke("start_watching", { workspacePath: dirPath }).catch(console.warn);
     invoke("set_last_workspace", { workspacePath: dirPath }).catch(console.warn);
+
+    // M5: Load conversation history
+    const agent = useAgentStore();
+    agent.loadConversation().catch(console.warn);
   }
 
   async function refreshTree() {
@@ -82,6 +88,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   function clear() {
     path.value = null;
     name.value = null;
+    hash.value = null;
     fileTree.value = [];
     homeMdPath.value = null;
     homeMdContent.value = "";
@@ -93,6 +100,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   return {
     path,
     name,
+    hash,
     fileTree,
     homeMdPath,
     homeMdContent,
