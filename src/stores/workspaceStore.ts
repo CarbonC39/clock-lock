@@ -23,6 +23,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const selectedFilePath = ref<string | null>(null);
   const selectedFileContent = ref<string | null>(null);
   const isLoading = ref(false);
+  const isNewProject = ref(false);
 
   async function openWorkspace() {
     const selected = await openDialog({ directory: true, multiple: false });
@@ -49,6 +50,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       hash.value = wsHash;
       name.value = dirPath.replace(/\\/g, "/").split("/").pop() ?? dirPath;
       path.value = dirPath;
+
+      // Detect new project (template just created, but project has files)
+      isNewProject.value =
+        mdContent.includes("Describe your project here.") &&
+        tree.length > 0;
     } catch (e) {
       console.error("Failed to open workspace:", e);
       throw e;
@@ -95,6 +101,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     path.value = null;
     name.value = null;
     hash.value = null;
+    isNewProject.value = false;
     fileTree.value = [];
     homeMdPath.value = null;
     homeMdContent.value = "";
@@ -113,6 +120,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     selectedFilePath,
     selectedFileContent,
     isLoading,
+    isNewProject,
     openWorkspace,
     loadWorkspace,
     refreshTree,

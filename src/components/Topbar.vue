@@ -26,7 +26,7 @@ onUnmounted(() => {
 
 async function minimize() { await win.minimize(); }
 async function toggleMaximize() { await win.toggleMaximize(); }
-async function close() { await win.close(); }
+async function close() { await win.hide(); }
 </script>
 
 <template>

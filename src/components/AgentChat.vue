@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { SendHorizonal, Settings2, Trash2 } from "lucide-vue-next";
+import { SendHorizonal, Settings2, Trash2, ScanEye } from "lucide-vue-next";
 import { useAgentStore } from "../stores/agentStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSupervisionStore } from "../stores/supervisionStore";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 import ChatMessage from "./ChatMessage.vue";
 import AgentPet from "./AgentPet.vue";
 
@@ -12,6 +13,7 @@ const router = useRouter();
 const agent = useAgentStore();
 const settings = useSettingsStore();
 const sv = useSupervisionStore();
+const workspace = useWorkspaceStore();
 
 const inputText = ref("");
 const messagesEl = ref<HTMLDivElement>();
@@ -89,6 +91,20 @@ onMounted(() => {
           <button class="link-btn" @click="router.push('/settings')">Settings</button>
           to get started.
         </div>
+      </div>
+
+      <!-- Init scan prompt -->
+      <div
+        v-if="workspace.isNewProject && !agent.messages.length && settings.settings.base_url"
+        class="scan-prompt"
+      >
+        <p>
+          This looks like a new project. I can scan the files and write an overview to <strong>home.md</strong>.
+        </p>
+        <button class="scan-btn" :disabled="agent.isBusy" @click="agent.scanProject()">
+          <ScanEye :size="14" />
+          {{ agent.isBusy ? "Scanning…" : "Scan &amp; summarize" }}
+        </button>
       </div>
 
       <ChatMessage
@@ -226,6 +242,43 @@ onMounted(() => {
   padding: 0;
   text-decoration: underline;
 }
+
+/* ── Scan prompt ── */
+.scan-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  background: color-mix(in srgb, var(--color-accent-purple) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 20%, transparent);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.scan-prompt p {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.scan-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-accent-purple);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+.scan-btn:hover:not(:disabled) { opacity: 0.85; }
+.scan-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Input ── */
 .input-area {

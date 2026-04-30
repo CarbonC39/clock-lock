@@ -301,6 +301,38 @@ Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untr
     }
   }
 
+  async function scanProject() {
+    const workspace = useWorkspaceStore();
+    if (!workspace.path || isBusy.value) return;
+
+    workspace.isNewProject = false;
+    pushNote("Scanning project files…");
+
+    const fileList = workspace.fileTree
+      .map((n) => `- ${n.is_dir ? "📁" : "📄"} ${n.name}${n.git_status ? ` [${n.git_status}]` : ""}`)
+      .slice(0, 50)
+      .join("\n");
+
+    const prompt = `A new project has been opened. Here is the file tree:
+${fileList}
+
+Write a concise home.md for this project. Follow this template exactly:
+
+# Overview
+[2-3 sentences summarizing what this project is based on the file names and structure]
+
+# Notes
+[Optional observations — key files, build tools detected, anything interesting]
+
+# Progress
+- [ ] Review the codebase
+- [ ] Set up the development environment
+
+Reply ONLY with the markdown content. Do not add explanations.`;
+
+    await sendMessage(prompt);
+  }
+
   function clear() {
     const workspace = useWorkspaceStore();
     if (workspace.hash && convId.value) {
@@ -314,5 +346,5 @@ Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untr
     isBusy.value = false;
   }
 
-  return { messages, state, isBusy, sendMessage, pushNote, clear, loadConversation };
+  return { messages, state, isBusy, sendMessage, pushNote, clear, loadConversation, scanProject };
 });

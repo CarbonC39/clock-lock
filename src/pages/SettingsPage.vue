@@ -239,6 +239,18 @@ async function save() {
             <p class="field-hint">Token budget per response.</p>
           </div>
 
+          <div class="field-group field-half">
+            <label class="field-label">Shell path</label>
+            <input
+              v-model="store.settings.shell_path"
+              class="field-input"
+              type="text"
+              placeholder="Auto-detect (cmd / sh)"
+              spellcheck="false"
+            />
+            <p class="field-hint">Shell executable for running bash blocks. On Windows, set to e.g. <code>C:\Program Files\Git\bin\bash.exe</code> for Git Bash.</p>
+          </div>
+
           <div class="field-group field-half" />
         </div>
       </section>

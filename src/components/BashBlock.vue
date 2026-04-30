@@ -3,6 +3,7 @@ import { ref, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { Play, ShieldAlert, ShieldCheck, ShieldX, RotateCw } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useSettingsStore } from "../stores/settingsStore";
 
 const props = defineProps<{ command: string }>();
 
@@ -10,6 +11,7 @@ type Safety = "safe" | "unsafe" | "blocked";
 type RunState = "idle" | "running" | "done" | "error";
 
 const workspace = useWorkspaceStore();
+const settings = useSettingsStore();
 const safety = ref<Safety>("unsafe");
 const runState = ref<RunState>("idle");
 const stdout = ref("");
@@ -43,7 +45,11 @@ async function run() {
   try {
     const result = await invoke<{ stdout: string; stderr: string; success: boolean; blocked: boolean }>(
       "run_command",
-      { command: props.command, workspacePath: workspace.path ?? undefined }
+      {
+        command: props.command,
+        workspacePath: workspace.path ?? undefined,
+        shellPath: settings.settings.shell_path || undefined,
+      }
     );
     stdout.value = result.stdout;
     stderr.value = result.stderr;

@@ -52,6 +52,7 @@ pub async fn classify_command(command: String) -> String {
 pub async fn run_command(
     workspace_path: Option<String>,
     command: String,
+    shell_path: Option<String>,
 ) -> Result<CommandResult, String> {
     if is_blacklisted(&command) {
         return Ok(CommandResult {
@@ -68,15 +69,25 @@ pub async fn run_command(
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default());
 
-    let mut cmd = if cfg!(target_os = "windows") {
-        let mut c = Command::new("cmd");
-        c.args(["/C", &command]);
-        c
+    let shell = shell_path
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| if cfg!(target_os = "windows") { "cmd".into() } else { "sh".into() });
+
+    let (shell_exe, shell_flag): (String, String) = if cfg!(target_os = "windows") {
+        let lower = shell.to_lowercase();
+        if lower.contains("powershell") || lower.contains("pwsh") {
+            (shell, "-Command".into())
+        } else if lower.contains("bash") {
+            (shell, "-c".into())
+        } else {
+            (shell, "/C".into()) // cmd
+        }
     } else {
-        let mut c = Command::new("sh");
-        c.args(["-c", &command]);
-        c
+        (shell, "-c".into())
     };
+
+    let mut cmd = Command::new(&shell_exe);
+    cmd.arg(&shell_flag).arg(&command);
     let output = cmd
         .current_dir(&dir)
         .output()

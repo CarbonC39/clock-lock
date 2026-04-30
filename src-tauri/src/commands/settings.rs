@@ -6,10 +6,13 @@ use tauri::Manager as _;
 
 fn default_max_context_messages() -> u32 { 30 }
 fn default_max_tokens() -> u32 { 4096 }
+fn default_shell_path() -> String {
+    if cfg!(target_os = "windows") { "cmd".into() } else { "sh".into() }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AgentSettings {
-    pub provider: String,   // "cloud" | "ollama"
+    pub provider: String,
     pub base_url: String,
     pub api_key: String,
     pub model: String,
@@ -18,6 +21,8 @@ pub struct AgentSettings {
     pub max_context_messages: u32,
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
+    #[serde(default = "default_shell_path")]
+    pub shell_path: String,
 }
 
 impl Default for AgentSettings {
@@ -30,6 +35,7 @@ impl Default for AgentSettings {
             personality: "helpful and encouraging senior developer".into(),
             max_context_messages: 30,
             max_tokens: 4096,
+            shell_path: default_shell_path(),
         }
     }
 }
@@ -87,6 +93,7 @@ struct StoredSettings {
     personality: String,
     max_context_messages: u32,
     max_tokens: u32,
+    shell_path: String,
 }
 
 #[tauri::command]
@@ -114,6 +121,7 @@ pub fn get_settings(app: tauri::AppHandle) -> AgentSettings {
         personality: stored.personality,
         max_context_messages: stored.max_context_messages,
         max_tokens: stored.max_tokens,
+        shell_path: stored.shell_path,
     }
 }
 
@@ -129,6 +137,7 @@ pub fn save_settings(app: tauri::AppHandle, settings: AgentSettings) -> Result<(
         personality: settings.personality,
         max_context_messages: settings.max_context_messages,
         max_tokens: settings.max_tokens,
+        shell_path: settings.shell_path,
     };
     let json = serde_json::to_string_pretty(&stored).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())

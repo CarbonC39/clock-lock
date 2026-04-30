@@ -19,6 +19,9 @@ use supervision::{
     configure_supervision, report_activity, start_supervision, stop_supervision,
     SupervisionState,
 };
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::tray::TrayIconBuilder;
+use tauri::Manager;
 use watcher::{start_watching, stop_watching, WatcherState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -72,6 +75,63 @@ pub fn run() {
             start_supervision,
             stop_supervision,
         ])
+        .setup(|app| {
+            // ── System tray ──
+            let show = MenuItemBuilder::with_id("show", "Show Clock Lock")
+                .build(app)?;
+            let quit = MenuItemBuilder::with_id("quit", "Quit")
+                .build(app)?;
+            let menu = MenuBuilder::new(app)
+                .item(&show)
+                .item(&quit)
+                .build()?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            if let Some(w) = app.get_webview_window("main") {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let tauri::tray::TrayIconEvent::Click {
+                        button: tauri::tray::MouseButton::Left,
+                        button_state: tauri::tray::MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // ── Close → hide to tray ──
+            if let Some(window) = app.get_webview_window("main") {
+                let window_clone = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        let _ = window_clone.hide();
+                        api.prevent_close();
+                    }
+                });
+            }
+
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
