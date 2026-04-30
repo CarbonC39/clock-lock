@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { SendHorizonal, Settings2, Trash2, ScanEye } from "lucide-vue-next";
-import { useAgentStore } from "../stores/agentStore";
+import { SendHorizonal, Settings2, Trash2, ScanEye, ChevronDown, ChevronUp } from "lucide-vue-next";
+import { useAgentStore, getSlashCommands } from "../stores/agentStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSupervisionStore } from "../stores/supervisionStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -17,6 +17,7 @@ const workspace = useWorkspaceStore();
 
 const inputText = ref("");
 const messagesEl = ref<HTMLDivElement>();
+const shortcutsOpen = ref(false);
 
 function scrollToBottom() {
   nextTick(() => {
@@ -116,6 +117,24 @@ onMounted(() => {
 
     <!-- ── Input ── -->
     <div class="input-area">
+      <!-- Slash shortcuts -->
+      <div class="shortcuts-bar">
+        <button class="shortcuts-toggle" @click="shortcutsOpen = !shortcutsOpen">
+          <component :is="shortcutsOpen ? ChevronDown : ChevronUp" :size="10" />
+          Quick actions
+        </button>
+        <div v-if="shortcutsOpen" class="shortcuts-list">
+          <button
+            v-for="sc in getSlashCommands()"
+            :key="sc.id"
+            class="shortcut-chip"
+            @click="inputText = sc.cmd"
+          >
+            {{ sc.cmd }}
+          </button>
+        </div>
+      </div>
+
       <div class="input-row" :class="{ disabled: agent.isBusy }">
         <textarea
           v-model="inputText"
@@ -139,7 +158,6 @@ onMounted(() => {
           {{ settings.settings.provider === "ollama" ? "Ollama" : "Cloud" }}
           · {{ settings.settings.model }}
         </span>
-        <span class="slash-hint">/help for commands</span>
       </div>
     </div>
   </div>
@@ -281,6 +299,51 @@ onMounted(() => {
 .scan-btn:hover:not(:disabled) { opacity: 0.85; }
 .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* ── Shortcuts bar ── */
+.shortcuts-bar {
+  padding: 0 0 6px;
+}
+
+.shortcuts-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  font-size: 10px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity var(--transition);
+}
+.shortcuts-toggle:hover { opacity: 1; }
+
+.shortcuts-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 4px;
+}
+
+.shortcut-chip {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  background: color-mix(in srgb, var(--color-accent-purple) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-purple);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.shortcut-chip:hover {
+  background: color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
+  border-color: var(--color-accent-purple);
+}
+
 /* ── Input ── */
 .input-area {
   border-top: 1px solid var(--color-border);
@@ -349,18 +412,12 @@ onMounted(() => {
 .input-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
 }
 
 .model-badge {
   font-size: 10.5px;
   color: var(--color-text-muted);
   font-family: var(--font-mono);
-}
-
-.slash-hint {
-  font-size: 10px;
-  color: var(--color-text-muted);
-  opacity: 0.5;
 }
 </style>

@@ -184,6 +184,17 @@ Guidelines:
 
   // ── Chat ──
 
+  function injectWorkspace(args: Record<string, unknown>): Record<string, unknown> {
+    const workspace = useWorkspaceStore();
+    if (!args["workspace_path"] && workspace.path) {
+      args["workspace_path"] = workspace.path;
+    }
+    if (!args["workspace_hash"] && workspace.hash) {
+      args["workspace_hash"] = workspace.hash;
+    }
+    return args;
+  }
+
   async function sendMessage(text: string) {
     if (!text.trim() || isBusy.value) return;
 
@@ -193,7 +204,6 @@ Guidelines:
       return;
     }
 
-    // ── Slash command expansion ──
     const trimmed = text.trim();
     let userText = trimmed;
     if (trimmed.startsWith("/")) {
@@ -220,24 +230,23 @@ Guidelines:
     }
 
     const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: userText,
-      timestamp: Date.now(),
+      id: crypto.randomUUID(), role: "user", content: userText, timestamp: Date.now(),
     };
     messages.value.push(userMsg);
     persistMessage(userMsg);
 
+    // Build the messages array for the API — we'll grow it across tool rounds
+    const systemMsg = await buildSystemPrompt();
+    const apiMessages: { role: string; content: string }[] = [
+      systemMsg,
+      { role: "user", content: userText },
+    ];
+
     // Tool call loop
-    let roundContent = userText;
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const assistantId = crypto.randomUUID();
       const assistantMsg: ChatMessage = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        timestamp: Date.now(),
-        isStreaming: true,
+        id: assistantId, role: "assistant", content: "", timestamp: Date.now(), isStreaming: true,
       };
       messages.value.push(assistantMsg);
       const assistant = messages.value.find((m) => m.id === assistantId)!;
@@ -250,16 +259,9 @@ Guidelines:
       });
 
       try {
-        const systemMsg = await buildSystemPrompt();
-        const history = messages.value
-          .filter((m) => m.role === "user" || m.role === "assistant")
-          .filter((m) => !m.isStreaming && !m.error && m.id !== assistantId)
-          .slice(-settings.settings.max_context_messages)
-          .map((m) => ({ role: m.role, content: m.content }));
-
         await invoke("chat_stream", {
           msgId: assistantId,
-          messages: [systemMsg, ...history],
+          messages: apiMessages,
           baseUrl: settings.settings.base_url,
           apiKey: settings.settings.api_key,
           model: settings.settings.model,
@@ -270,48 +272,44 @@ Guidelines:
         unlistenChunk();
         unlistenError();
 
-        // Check for tool calls
+        if (assistant.error) break;
+
         const tools = parseToolCalls(assistant.content);
         if (tools.length === 0) {
           persistMessage({ ...assistant, id: assistantId, timestamp: Date.now() });
-          break; // No tools → done
+          break; // Done
         }
 
-        // Strip tool blocks from display, execute tools
-        const stripped = stripToolBlocks(assistant.content);
-        assistant.content = stripped;
+        // Strip tool blocks from display, keep any non-tool text
+        const displayText = stripToolBlocks(assistant.content);
+        assistant.content = displayText || "(working…)";
         persistMessage({ ...assistant, id: assistantId, timestamp: Date.now() });
 
-        const toolResults: string[] = [];
+        // Execute tools
+        const toolResults: { name: string; result: string }[] = [];
         for (const tc of tools) {
+          const args = injectWorkspace(tc.args);
           const toolMsg: ChatMessage = {
-            id: crypto.randomUUID(),
-            role: "tool",
-            content: "",
-            timestamp: Date.now(),
-            toolName: tc.name,
+            id: crypto.randomUUID(), role: "tool", content: "", timestamp: Date.now(), toolName: tc.name,
           };
           try {
-            const result = await invoke<string>("invoke_tool", { toolName: tc.name, args: tc.args });
+            const result = await invoke<string>("invoke_tool", { toolName: tc.name, args });
             toolMsg.toolResult = result;
-            toolResults.push(`<tool_result name="${tc.name}">\n${result}\n</tool_result>`);
+            toolResults.push({ name: tc.name, result });
           } catch (e) {
             toolMsg.toolResult = `Error: ${e}`;
-            toolResults.push(`<tool_result name="${tc.name}" error="true">\n${String(e)}\n</tool_result>`);
+            toolResults.push({ name: tc.name, result: `Error: ${String(e)}` });
           }
           toolMsg.content = toolMsg.toolResult || "";
           messages.value.push(toolMsg);
         }
 
-        // Add tool results and continue loop
-        roundContent = toolResults.join("\n");
-        const toolUserMsg: ChatMessage = {
-          id: crypto.randomUUID(),
-          role: "user",
-          content: `Tool results:\n${roundContent}`,
-          timestamp: Date.now(),
-        };
-        messages.value.push(toolUserMsg);
+        // Append to API messages for next round
+        apiMessages.push({ role: "assistant", content: assistant.content });
+        apiMessages.push({
+          role: "system",
+          content: `Tool results received. Continue your response using this data:\n${toolResults.map(r => `<tool_result name="${r.name}">\n${r.result}\n</tool_result>`).join("\n")}\n\nNow continue helping the user with the information you just received. Do NOT repeat the tool calls — use the results.`,
+        });
       } catch (e) {
         assistant.content = assistant.content || `Error: ${e}`;
         assistant.error = String(e);

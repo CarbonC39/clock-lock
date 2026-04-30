@@ -17,7 +17,8 @@ pub async fn execute_tool(app: &AppHandle, name: &str, args: &Value) -> Result<S
     match name {
         "read_file" => {
             let path = args["path"].as_str().ok_or("missing path")?;
-            crate::commands::fs::read_file(path.into())
+            let resolved = resolve_ws_path(args, path);
+            crate::commands::fs::read_file(resolved)
         }
         "list_dir" => {
             let ws = args["workspace_path"]
@@ -102,6 +103,17 @@ pub async fn execute_tool(app: &AppHandle, name: &str, args: &Value) -> Result<S
 }
 
 // ── Tool helpers ──
+
+fn resolve_ws_path(args: &Value, path: &str) -> String {
+    let p = Path::new(path);
+    if p.is_absolute() {
+        path.into()
+    } else if let Some(ws) = args["workspace_path"].as_str() {
+        Path::new(ws).join(path).to_string_lossy().to_string()
+    } else {
+        path.into()
+    }
+}
 
 fn format_tree(nodes: &[crate::commands::fs::FileNode]) -> String {
     let mut out = String::new();
