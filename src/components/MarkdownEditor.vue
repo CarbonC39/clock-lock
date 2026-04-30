@@ -353,21 +353,17 @@ function cancelEdit(si: number) {
   margin-top: 8px;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
 }
 
 .task-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 4px 4px;
+  border-radius: var(--radius-sm);
   transition: background-color var(--transition);
   font-size: 13px;
-  border-bottom: 1px solid var(--color-border);
 }
-.task-row:last-of-type { border-bottom: none; }
 .task-row:hover {
   background: color-mix(in srgb, var(--color-accent-blue) 4%, transparent);
 }
@@ -379,23 +375,21 @@ function cancelEdit(si: number) {
 
 /* ── Custom checkbox ── */
 .task-check {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--color-accent-blue) 6%, transparent);
-  border: 1.5px solid color-mix(in srgb, var(--color-accent-blue) 25%, var(--color-border));
+  background: transparent;
+  border: 1.5px solid var(--color-border);
   border-radius: 3px;
   cursor: pointer;
   padding: 0;
   transition: all var(--transition);
 }
-.task-check:hover {
-  border-color: var(--color-accent-blue);
-  background: color-mix(in srgb, var(--color-accent-blue) 12%, transparent);
-}
+.task-row:hover .task-check { border-color: var(--color-text-muted); }
+.task-check:hover { border-color: var(--color-accent-blue); }
 .task-check.on {
   background: var(--color-accent-blue);
   border-color: var(--color-accent-blue);
@@ -426,7 +420,7 @@ function cancelEdit(si: number) {
   height: 20px;
   flex-shrink: 0;
   background: none;
-  border: 1px solid transparent;
+  border: none;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   cursor: pointer;
@@ -436,7 +430,6 @@ function cancelEdit(si: number) {
 }
 .task-remove:hover {
   background: color-mix(in srgb, var(--color-accent-red) 10%, transparent);
-  border-color: color-mix(in srgb, var(--color-accent-red) 30%, transparent);
   color: var(--color-accent-red);
 }
 
@@ -446,18 +439,16 @@ function cancelEdit(si: number) {
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 5px;
+  padding: 4px;
   font-size: 11px;
   background: none;
   border: none;
-  border-top: 1px solid var(--color-border);
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all var(--transition);
 }
 .task-add:hover {
   color: var(--color-accent-blue);
-  background: color-mix(in srgb, var(--color-accent-blue) 6%, transparent);
 }
 
 /* ── Edit mode ── */

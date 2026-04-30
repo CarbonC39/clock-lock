@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { Maximize2 } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAgentStore } from "../stores/agentStore";
 import AgentPet from "./AgentPet.vue";
@@ -10,16 +11,14 @@ const workspace = useWorkspaceStore();
 const agent = useAgentStore();
 
 const mode = ref<"todo" | "status">("todo");
+const hover = ref(false);
 
 const topTodo = computed(() => {
   if (!workspace.homeMdContent) return "Open a workspace";
   const lines = workspace.homeMdContent.split("\n");
   let inSection = false;
   for (const line of lines) {
-    if (/^#\s+(todo|progress)/i.test(line)) {
-      inSection = true;
-      continue;
-    }
+    if (/^#\s+(todo|progress)/i.test(line)) { inSection = true; continue; }
     if (/^#\s+/.test(line)) { inSection = false; continue; }
     if (inSection) {
       const m = line.match(/^-\s*\[ \]\s+(.+)/);
@@ -43,28 +42,39 @@ const petState = computed<"idle" | "thinking" | "happy" | "sleepy" | "excited">(
   return "idle";
 });
 
-function cycleMode(e: MouseEvent) {
-  e.stopPropagation();
+function cycleMode() {
   mode.value = mode.value === "todo" ? "status" : "todo";
-}
-
-function onRestore() {
-  emit("restore");
 }
 </script>
 
 <template>
-  <div class="widget-root" data-tauri-drag-region @click="onRestore">
-    <div class="widget-inner">
-      <div class="pet-col">
+  <div
+    class="widget-root"
+    data-tauri-drag-region
+    @mouseenter="hover = true"
+    @mouseleave="hover = false"
+  >
+    <div class="widget-body">
+      <div class="widget-left" @click="cycleMode">
         <AgentPet :state="petState" size="sm" />
       </div>
-      <div class="content-col" @click.stop="cycleMode">
+
+      <div class="widget-center" @click="cycleMode">
         <div v-if="mode === 'todo'" class="widget-todo">{{ topTodo }}</div>
         <div v-else class="widget-status">{{ statusText }}</div>
       </div>
-      <div class="mode-dot" :class="mode">
-        <span class="dot" /><span class="dot" />
+
+      <div class="widget-right">
+        <Transition name="btn-fade">
+          <button
+            v-if="hover"
+            class="restore-btn"
+            title="Restore"
+            @click="emit('restore')"
+          >
+            <Maximize2 :size="13" />
+          </button>
+        </Transition>
       </div>
     </div>
   </div>
@@ -75,39 +85,33 @@ function onRestore() {
   width: 100%;
   height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
   background: var(--color-bg);
-  cursor: pointer;
+  -webkit-app-region: drag;
 }
 
-.widget-inner {
+.widget-body {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  padding: 0 14px;
+  border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
-  min-width: 220px;
-  max-width: 340px;
-  transition: border-color var(--transition);
 }
 
-.widget-inner:hover {
-  border-color: var(--color-accent-purple);
-}
-
-.pet-col {
+.widget-left {
   flex-shrink: 0;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 
-.content-col {
+.widget-center {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   cursor: pointer;
-  padding: 2px 0;
+  -webkit-app-region: no-drag;
 }
 
 .widget-todo {
@@ -128,23 +132,35 @@ function onRestore() {
   font-style: italic;
 }
 
-/* ── Mode dots ── */
-.mode-dot {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+.widget-right {
   flex-shrink: 0;
-  padding: 2px;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
 }
 
-.dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--color-border);
-  transition: background-color var(--transition);
+.restore-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.restore-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+  border-color: var(--color-text-muted);
 }
 
-.mode-dot.todo .dot:first-child { background: var(--color-accent-blue); }
-.mode-dot.status .dot:last-child { background: var(--color-accent-blue); }
+/* ── Transitions ── */
+.btn-fade-enter-active,
+.btn-fade-leave-active { transition: opacity 0.12s ease; }
+.btn-fade-enter-from,
+.btn-fade-leave-to { opacity: 0; }
 </style>
