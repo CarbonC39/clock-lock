@@ -231,7 +231,7 @@ pub fn ensure_home_md(app: tauri::AppHandle, workspace_path: String) -> Result<(
     let dir = workspace_data_dir(&app, &workspace_path)?;
     let home_path = dir.join("home.md");
     if !home_path.exists() {
-        let template = "# Overview\n\nDescribe your project here.\n\n# Progress\n\n- [ ] Getting started\n\n# Todos\n\n- [ ] First task\n";
+        let template = "# Overview\n\nDescribe your project here.\n\n# Notes\n\nUse this space for free-form notes, links, or code snippets.\n\n# Progress\n\n- [ ] Getting started\n";
         fs::write(&home_path, template).map_err(|e| e.to_string())?;
     }
     let content = fs::read_to_string(&home_path).map_err(|e| e.to_string())?;
