@@ -33,8 +33,8 @@ async function run() {
   stdout.value = "";
   stderr.value = "";
 
-  // Log user-approved bash runs (skip auto-runs)
-  if (!didAutoRun.value && workspace.hash) {
+  // Log bash runs (but not auto-runs)
+  if (workspace.hash) {
     invoke("log_event", {
       workspaceHash: workspace.hash,
       eventType: "bash-run",

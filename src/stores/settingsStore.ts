@@ -37,9 +37,11 @@ export const useSettingsStore = defineStore("settings", () => {
   const loaded = ref(false);
 
   async function load() {
+    if (loaded.value) return;
     try {
       const s = await invoke<AgentSettings>("get_settings");
-      settings.value = s;
+      // Merge with defaults so new fields don't become undefined
+      settings.value = { ...settings.value, ...s };
     } catch {
       // use defaults
     }

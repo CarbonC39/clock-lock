@@ -81,16 +81,16 @@ export const useAgentStore = defineStore("agent", () => {
       workspaceHash: workspace.hash,
     });
 
-    const records = await invoke<{ id: number; role: string; content: string }[]>(
+    const records = await invoke<{ id: number; role: string; content: string; created_at?: number }[]>(
       "load_messages",
       { workspaceHash: workspace.hash, convId: convId.value, limit: 100 }
     );
 
-    messages.value = records.map((r) => ({
+    messages.value = records.map((r, i) => ({
       id: `db-${r.id}`,
       role: r.role as ChatMessage["role"],
       content: r.content,
-      timestamp: Date.now(),
+      timestamp: r.created_at ? r.created_at * 1000 : Date.now() + i,
     }));
   }
 
@@ -231,9 +231,11 @@ Guidelines:
     state.value = "thinking";
     if (happyTimeoutId) { clearTimeout(happyTimeoutId); happyTimeoutId = null; }
 
-    // Snooze detection
-    const prevMsg = messages.value[messages.value.length - 1];
-    if (prevMsg?.role === "system-note" && prevMsg.content.startsWith("[Supervisor]") && !prevMsg.content.startsWith("[Supervisor ✓]")) {
+    // Snooze detection — find the last supervisor check-in (not confirmation)
+    const prevMsg = [...messages.value].reverse().find(
+      (m) => m.role === "system-note" && m.content.startsWith("[Supervisor]") && !m.content.startsWith("[Supervisor ✓]")
+    );
+    if (prevMsg) {
       tryParseSnooze(trimmed).catch(() => {});
     }
 
@@ -251,6 +253,7 @@ Guidelines:
     ];
 
     // Tool call loop
+    let success = true;
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const assistantId = crypto.randomUUID();
       const assistantMsg: ChatMessage = {
@@ -324,15 +327,18 @@ Guidelines:
         assistant.isStreaming = false;
         unlistenChunk();
         unlistenError();
+        success = false;
         break;
       }
     }
 
-    state.value = "happy";
-    happyTimeoutId = setTimeout(() => {
-      if (state.value === "happy") state.value = "idle";
-      happyTimeoutId = null;
-    }, 4000);
+    state.value = success ? "happy" : "idle";
+    if (success) {
+      happyTimeoutId = setTimeout(() => {
+        if (state.value === "happy") state.value = "idle";
+        happyTimeoutId = null;
+      }, 4000);
+    }
     isBusy.value = false;
   }
 

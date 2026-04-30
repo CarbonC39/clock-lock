@@ -30,6 +30,7 @@ const petState = computed<
   "idle" | "thinking" | "happy" | "sleepy" | "excited"
 >(() => {
   if (!workspace.path) return "sleepy";
+  if (agent.state === "excited") return "excited";
   if (agent.isBusy) return "thinking";
   if (agent.state === "happy") return "happy";
   return "idle";
@@ -91,8 +92,9 @@ interface TaskItem {
 }
 
 const allTasks = computed<TaskItem[]>(() => {
-  if (!workspace.homeMdContent) return [];
-  const lines = workspace.homeMdContent.split("\n");
+  const md = workspace.homeMdContent;
+  if (!md) return [];
+  const lines = md.split("\n");
   const result: TaskItem[] = [];
   let inSection = false;
   for (let i = 0; i < lines.length; i++) {
@@ -112,7 +114,9 @@ const unchecked = computed(() => allTasks.value.filter((t) => !t.checked));
 const completed = computed(() => allTasks.value.filter((t) => t.checked));
 
 async function toggleTask(task: TaskItem) {
-  const lines = workspace.homeMdContent.split("\n");
+  const md = workspace.homeMdContent;
+  if (!md) return;
+  const lines = md.split("\n");
   const line = lines[task.lineIndex];
   lines[task.lineIndex] = task.checked
     ? line.replace("[x]", "[ ]")
@@ -124,6 +128,7 @@ function addTask() {
   const text = newTaskText.value.trim();
   if (!text) return;
   let content = workspace.homeMdContent;
+  if (!content) return;
   const lines = content.split("\n");
   let lastTaskLine = -1;
   let inSection = false;

@@ -47,6 +47,7 @@ export const useSupervisionStore = defineStore("supervision", () => {
       if (agent.isBusy) return;
 
       const settings = useSettingsStore();
+      if (!settings.settings.base_url) return;
       const prompt =
         "You are the Clock Lock supervisor. The user has been idle for a while. Send a brief, friendly check-in message (1-2 sentences). Be encouraging but not pushy. Do NOT reply with anything else.";
 

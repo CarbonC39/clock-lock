@@ -34,13 +34,12 @@ async fn get_pool(app: &AppHandle, workspace_hash: &str) -> Result<SqlitePool, S
     Ok(pool)
 }
 
-// ── Frontend types ──
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MsgRecord {
     pub id: i64,
     pub role: String,
     pub content: String,
+    pub created_at: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -59,7 +58,6 @@ pub async fn ensure_conversation(
     workspace_hash: String,
 ) -> Result<String, String> {
     let pool = get_pool(&app, &workspace_hash).await?;
-
     let existing = sqlx::query_scalar::<_, String>(
         "SELECT id FROM conversations WHERE project_hash = ? ORDER BY created_at DESC LIMIT 1",
     )
@@ -116,7 +114,7 @@ pub async fn load_messages(
 ) -> Result<Vec<MsgRecord>, String> {
     let pool = get_pool(&app, &workspace_hash).await?;
     let rows = sqlx::query(
-        "SELECT id, role, content FROM messages
+        "SELECT id, role, content, created_at FROM messages
          WHERE conv_id = ?
          ORDER BY created_at ASC, id ASC
          LIMIT ?",
@@ -133,6 +131,7 @@ pub async fn load_messages(
             id: r.get("id"),
             role: r.get("role"),
             content: r.get("content"),
+            created_at: r.get("created_at"),
         })
         .collect())
 }
@@ -146,7 +145,7 @@ pub async fn search_messages(
 ) -> Result<Vec<MsgRecord>, String> {
     let pool = get_pool(&app, &workspace_hash).await?;
     let rows = sqlx::query(
-        "SELECT m.id, m.role, m.content FROM messages m
+        "SELECT m.id, m.role, m.content, m.created_at FROM messages m
          JOIN messages_fts f ON m.id = f.rowid
          WHERE messages_fts MATCH ?
          ORDER BY rank
@@ -164,6 +163,7 @@ pub async fn search_messages(
             id: r.get("id"),
             role: r.get("role"),
             content: r.get("content"),
+            created_at: r.get("created_at"),
         })
         .collect())
 }
@@ -242,7 +242,7 @@ pub async fn search_messages_direct(
 ) -> Result<Vec<MsgRecord>, String> {
     let pool = get_pool(app, workspace_hash).await?;
     let rows = sqlx::query(
-        "SELECT m.id, m.role, m.content FROM messages m
+        "SELECT m.id, m.role, m.content, m.created_at FROM messages m
          JOIN messages_fts f ON m.id = f.rowid
          WHERE messages_fts MATCH ?
          ORDER BY rank
@@ -260,6 +260,7 @@ pub async fn search_messages_direct(
             id: r.get("id"),
             role: r.get("role"),
             content: r.get("content"),
+            created_at: r.get("created_at"),
         })
         .collect())
 }

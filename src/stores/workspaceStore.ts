@@ -89,10 +89,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     try {
       selectedFileContent.value = await invoke<string>("read_file", { path: filePath });
     } catch (e: unknown) {
-      if (e === "binary") {
+      const msg = typeof e === "string" ? e : (e instanceof Error ? e.message : String(e));
+      if (msg === "binary" || msg.includes("binary")) {
         selectedFileContent.value = null;
       } else {
-        selectedFileContent.value = String(e);
+        selectedFileContent.value = `[Error reading file: ${msg}]`;
       }
     }
   }

@@ -89,7 +89,8 @@ function computeNewContent(original: string): string {
         newLines.push(line.content);
       }
     }
-    const start = hunk.oldStart - 1;
+    // new-file diffs have oldStart=0, splice at start of array
+    const start = Math.max(0, hunk.oldStart - 1);
     result.splice(start, oldLineCount, ...newLines);
   }
 
@@ -102,7 +103,7 @@ async function apply() {
   applyError.value = "";
 
   try {
-    const fullPath = workspace.path.replace(/\/$/, "") + "/" + filePath.value;
+    const fullPath = workspace.path.replace(/[/\\]$/, "").replace(/\\/g, "/") + "/" + filePath.value;
     let original = "";
     try {
       original = await invoke<string>("read_file", { path: fullPath });

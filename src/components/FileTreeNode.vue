@@ -28,8 +28,12 @@ function select() {
 
 function onContextMenu(e: MouseEvent) {
   e.preventDefault();
+  // Close any previously-open context menu in the document
+  document.dispatchEvent(new Event("ctx-close"));
   ctxMenu.value = { x: e.clientX, y: e.clientY };
-  document.addEventListener("click", closeCtx, { once: true });
+  const handler = () => closeCtx();
+  document.addEventListener("click", handler, { once: true });
+  document.addEventListener("ctx-close", handler, { once: true });
 }
 
 function closeCtx() {

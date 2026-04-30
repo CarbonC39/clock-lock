@@ -4,13 +4,6 @@ import Topbar from "../components/Topbar.vue";
 import FileTree from "../components/FileTree.vue";
 import WorkspaceHome from "../components/WorkspaceHome.vue";
 import AgentChat from "../components/AgentChat.vue";
-import { useWorkspaceStore } from "../stores/workspaceStore";
-
-const workspace = useWorkspaceStore();
-
-function handleOpenWorkspace() {
-  workspace.openWorkspace();
-}
 
 const LEFT_DEFAULT = 220;
 const RIGHT_DEFAULT = 300;
@@ -73,7 +66,7 @@ onUnmounted(() => {
 
       <!-- Center panel -->
       <div class="panel panel-center">
-        <WorkspaceHome @open-workspace="handleOpenWorkspace" />
+        <WorkspaceHome />
       </div>
 
       <!-- Right divider -->
