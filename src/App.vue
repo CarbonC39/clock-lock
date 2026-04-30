@@ -16,8 +16,8 @@ const appWindow = getCurrentWindow();
 
 let savedSize = { w: 1200, h: 760 };
 
-const WIDGET_W = 360;
-const WIDGET_H = 72;
+const WIDGET_W = 240;
+const WIDGET_H = 400;
 
 async function toggleWidget() {
   if (widgetMode.value) {
