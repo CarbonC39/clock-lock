@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, inject } from "vue";
 import { useRouter } from "vue-router";
 import { Settings, FolderOpen, Minus, Square, X, PanelBottom } from "lucide-vue-next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { invoke } from "@tauri-apps/api/core";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
 const router = useRouter();
 const workspace = useWorkspaceStore();
+const toggleWidget = inject<() => Promise<void>>("toggleWidget");
 
 const win = getCurrentWindow();
 const isMaximized = ref(false);
-const widgetVisible = ref(false);
 let unlistenResize: (() => void) | null = null;
 
 onMounted(async () => {
@@ -19,7 +18,6 @@ onMounted(async () => {
   unlistenResize = await win.onResized(async () => {
     isMaximized.value = await win.isMaximized();
   });
-  widgetVisible.value = await invoke<boolean>("is_widget_visible").catch(() => false);
 });
 
 onUnmounted(() => {
@@ -29,10 +27,6 @@ onUnmounted(() => {
 async function minimize() { await win.minimize(); }
 async function toggleMaximize() { await win.toggleMaximize(); }
 async function close() { await win.close(); }
-
-async function toggleWidget() {
-  widgetVisible.value = await invoke<boolean>("toggle_widget").catch(() => false);
-}
 </script>
 
 <template>
@@ -57,8 +51,8 @@ async function toggleWidget() {
 
     <!-- Right: app controls + window controls -->
     <div class="topbar-right">
-      <button class="icon-btn" title="Widget" @click="toggleWidget">
-        <PanelBottom :size="14" :class="{ 'widget-on': widgetVisible }" />
+      <button v-if="toggleWidget" class="icon-btn" title="Widget" @click="toggleWidget">
+        <PanelBottom :size="14" />
       </button>
 
       <button class="icon-btn" title="Settings" @click="router.push('/settings')">
@@ -194,16 +188,6 @@ async function toggleWidget() {
 .icon-btn:hover {
   color: var(--color-text-primary);
   background: var(--color-surface-hover);
-}
-
-.widget-on { color: var(--color-accent-purple) !important; }
-
-/* ── Window divider ── */
-.win-divider {
-  width: 1px;
-  height: 16px;
-  background: var(--color-border);
-  margin: 0 2px;
 }
 
 /* ── Window control buttons ── */
