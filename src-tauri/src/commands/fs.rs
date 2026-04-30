@@ -406,3 +406,42 @@ pub fn open_in_explorer(path: String) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// Search files by name pattern within the workspace.
+#[tauri::command]
+pub fn search_files(workspace_path: String, pattern: String, limit: Option<usize>) -> Result<Vec<String>, String> {
+    let root = Path::new(&workspace_path);
+    let mut results = Vec::new();
+    let lower = pattern.to_lowercase();
+    let max = limit.unwrap_or(30);
+    search_recursive(root, root, &lower, &mut results, max)?;
+    Ok(results)
+}
+
+fn search_recursive(
+    base: &Path,
+    dir: &Path,
+    pattern: &str,
+    results: &mut Vec<String>,
+    limit: usize,
+) -> Result<(), String> {
+    if results.len() >= limit { return Ok(()); }
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.filter_map(|e: Result<std::fs::DirEntry, std::io::Error>| e.ok()) {
+            if results.len() >= limit { break; }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if matches!(name.as_str(), ".git" | ".clocklock") { continue; }
+            let path = entry.path();
+            let rel = path.strip_prefix(base)
+                .map(|p: &Path| p.to_string_lossy().replace('\\', "/"))
+                .unwrap_or_default();
+            if name.to_lowercase().contains(pattern) || rel.to_lowercase().contains(pattern) {
+                results.push(rel);
+            }
+            if entry.file_type().map(|t: std::fs::FileType| t.is_dir()).unwrap_or(false) {
+                search_recursive(base, &path, pattern, results, limit)?;
+            }
+        }
+    }
+    Ok(())
+}
