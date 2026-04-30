@@ -71,6 +71,10 @@ pub fn start_supervision(app: AppHandle) {
 
             if !dnd && elapsed >= Duration::from_secs(idle_hours * 3600) {
                 let _ = app_clone.emit("supervision-checkin", ());
+                // Reset timer so we don't emit again until another full idle cycle
+                if let Ok(mut la) = state.last_activity.lock() {
+                    *la = Instant::now();
+                }
             }
         }
     });

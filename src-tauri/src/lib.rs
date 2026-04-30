@@ -11,7 +11,7 @@ use commands::fs::{
 };
 use commands::memory::{
     clear_conversation, ensure_conversation, get_events, load_messages, log_event,
-    save_message, search_messages,
+    save_message, search_messages, DbPoolCache,
 };
 use commands::settings::{get_settings, save_settings};
 use commands::shell::{classify_command, run_command};
@@ -26,6 +26,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(WatcherState::new())
         .manage(SupervisionState::new())
+        .manage(DbPoolCache(std::sync::Mutex::new(std::collections::HashMap::new())))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

@@ -54,7 +54,7 @@ function onRestore() {
 </script>
 
 <template>
-  <div class="widget-root" @click="onRestore">
+  <div class="widget-root" data-tauri-drag-region @click="onRestore">
     <div class="widget-inner">
       <div class="pet-col">
         <AgentPet :state="petState" size="sm" />

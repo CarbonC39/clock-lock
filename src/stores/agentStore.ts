@@ -146,9 +146,13 @@ Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untr
       return;
     }
 
-    // ── Snooze detection ──
+    // ── Snooze detection (only for check-in messages, not confirmations) ──
     const prevMsg = messages.value[messages.value.length - 1];
-    if (prevMsg?.role === "system-note" && prevMsg.content.startsWith("[Supervisor]")) {
+    const isCheckin =
+      prevMsg?.role === "system-note" &&
+      prevMsg.content.startsWith("[Supervisor]") &&
+      !prevMsg.content.startsWith("[Supervisor ✓]");
+    if (isCheckin) {
       tryParseSnooze(text.trim()).catch(() => {});
     }
 
@@ -284,7 +288,7 @@ Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untr
       if (json.hours > 0) {
         sv.setIdleHours(json.hours);
         pushNote(
-          `[Supervisor] Snoozed for ${json.hours}h${json.reason ? ` — ${json.reason}` : ""}.`
+          `[Supervisor ✓] Snoozed for ${json.hours}h${json.reason ? ` — ${json.reason}` : ""}.`
         );
       }
     } catch {

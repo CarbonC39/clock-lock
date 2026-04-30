@@ -1,15 +1,37 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use sqlx::Row;
 use tauri::AppHandle;
 use tauri::Manager as _;
 
 use crate::db;
 
-/// Returns the per-workspace database pool, caching it in Tauri state
-async fn get_pool(app: &AppHandle, workspace_hash: &str) -> Result<sqlx::SqlitePool, String> {
+pub struct DbPoolCache(pub Mutex<HashMap<String, SqlitePool>>);
+
+/// Returns the per-workspace database pool, using an in-memory cache
+async fn get_pool(app: &AppHandle, workspace_hash: &str) -> Result<SqlitePool, String> {
+    {
+        let cache = app.state::<DbPoolCache>();
+        let map = cache.0.lock().unwrap();
+        if let Some(pool) = map.get(workspace_hash) {
+            return Ok(pool.clone());
+        }
+    }
+
     let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let db_path = base.join("workspaces").join(workspace_hash).join("memory.db");
-    db::open_db(&db_path).await
+    let pool = db::open_db(&db_path).await?;
+
+    {
+        let cache = app.state::<DbPoolCache>();
+        let mut map = cache.0.lock().unwrap();
+        map.insert(workspace_hash.to_string(), pool.clone());
+    }
+
+    Ok(pool)
 }
 
 // ── Frontend types ──
