@@ -5,8 +5,11 @@ import FileTree from "../components/FileTree.vue";
 import WorkspaceHome from "../components/WorkspaceHome.vue";
 import AgentChat from "../components/AgentChat.vue";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useWidgetSync } from "../composables/useWidgetSync";
 
 const workspace = useWorkspaceStore();
+
+useWidgetSync();
 
 function handleOpenWorkspace() {
   workspace.openWorkspace();

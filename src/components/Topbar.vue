@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { Settings, FolderOpen, Minus, Square, X } from "lucide-vue-next";
+import { Settings, FolderOpen, Minus, Square, X, PanelBottom } from "lucide-vue-next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
 const router = useRouter();
@@ -10,6 +11,7 @@ const workspace = useWorkspaceStore();
 
 const win = getCurrentWindow();
 const isMaximized = ref(false);
+const widgetVisible = ref(false);
 let unlistenResize: (() => void) | null = null;
 
 onMounted(async () => {
@@ -17,6 +19,7 @@ onMounted(async () => {
   unlistenResize = await win.onResized(async () => {
     isMaximized.value = await win.isMaximized();
   });
+  widgetVisible.value = await invoke<boolean>("is_widget_visible").catch(() => false);
 });
 
 onUnmounted(() => {
@@ -26,6 +29,10 @@ onUnmounted(() => {
 async function minimize() { await win.minimize(); }
 async function toggleMaximize() { await win.toggleMaximize(); }
 async function close() { await win.close(); }
+
+async function toggleWidget() {
+  widgetVisible.value = await invoke<boolean>("toggle_widget").catch(() => false);
+}
 </script>
 
 <template>
@@ -50,6 +57,10 @@ async function close() { await win.close(); }
 
     <!-- Right: app controls + window controls -->
     <div class="topbar-right">
+      <button class="icon-btn" title="Widget" @click="toggleWidget">
+        <PanelBottom :size="14" :class="{ 'widget-on': widgetVisible }" />
+      </button>
+
       <button class="icon-btn" title="Settings" @click="router.push('/settings')">
         <Settings :size="14" />
       </button>
@@ -181,9 +192,11 @@ async function close() { await win.close(); }
 }
 
 .icon-btn:hover {
-  background-color: var(--color-surface-hover);
   color: var(--color-text-primary);
+  background: var(--color-surface-hover);
 }
+
+.widget-on { color: var(--color-accent-purple) !important; }
 
 /* ── Window divider ── */
 .win-divider {

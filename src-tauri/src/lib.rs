@@ -15,6 +15,7 @@ use commands::memory::{
 };
 use commands::settings::{get_settings, save_settings};
 use commands::shell::{classify_command, run_command};
+use commands::window::{close_widget, is_widget_visible, toggle_widget};
 use supervision::{
     configure_supervision, report_activity, start_supervision, stop_supervision,
     SupervisionState,
@@ -70,6 +71,10 @@ pub fn run() {
             configure_supervision,
             start_supervision,
             stop_supervision,
+            // window
+            toggle_widget,
+            close_widget,
+            is_widget_visible,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

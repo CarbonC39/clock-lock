@@ -3,3 +3,4 @@ pub mod fs;
 pub mod memory;
 pub mod settings;
 pub mod shell;
+pub mod window;
