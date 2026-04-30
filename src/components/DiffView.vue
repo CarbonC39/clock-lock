@@ -159,7 +159,7 @@ function cancel() {
           <span class="status-label done">
             <Check :size="12" /> Applied
           </span>
-          <button class="undo-btn" @click="cancel">Undo</button>
+          <button class="undo-btn" @click="cancel">Dismiss</button>
         </template>
         <template v-else>
           <span class="status-label error">
@@ -167,6 +167,7 @@ function cancel() {
             {{ applyError || "Failed" }}
           </span>
           <button class="retry-btn" @click="apply">Retry</button>
+          <button class="undo-btn" @click="cancel">Dismiss</button>
         </template>
       </div>
     </div>

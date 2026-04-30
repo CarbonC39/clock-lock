@@ -187,6 +187,7 @@ async function save() {
                 max="720"
                 step="1"
                 @change="sv.setIdleHours(sv.idleHours)"
+                @blur="(e) => { const v = (e.target as HTMLInputElement).valueAsNumber; if (isNaN(v) || v < 1) { sv.idleHours = 48; sv.setIdleHours(48) } }"
               />
               <p class="field-hint">After this many hours of inactivity, the agent will check in on you.</p>
             </div>
@@ -219,6 +220,7 @@ async function save() {
               min="5"
               max="200"
               step="5"
+              @blur="(e) => { const v = (e.target as HTMLInputElement).valueAsNumber; if (isNaN(v)) store.settings.max_context_messages = 30 }"
             />
             <p class="field-hint">Past messages included per request.</p>
           </div>
@@ -232,6 +234,7 @@ async function save() {
               min="256"
               max="32000"
               step="256"
+              @blur="(e) => { const v = (e.target as HTMLInputElement).valueAsNumber; if (isNaN(v)) store.settings.max_tokens = 4096 }"
             />
             <p class="field-hint">Token budget per response.</p>
           </div>

@@ -41,7 +41,10 @@ onUnmounted(() => {
     </div>
 
     <div class="panel-body">
-      <template v-if="workspace.path">
+      <template v-if="workspace.isLoading">
+        <div class="empty-hint">Loading…</div>
+      </template>
+      <template v-else-if="workspace.path">
         <FileTreeNode
           v-for="node in workspace.fileTree"
           :key="node.path"

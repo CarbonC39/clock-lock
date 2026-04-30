@@ -35,6 +35,7 @@ async function enterWidgetMode() {
 
   widgetMode.value = true;
   await appWindow.setAlwaysOnTop(true);
+  await appWindow.setMaximizable(false);
   await appWindow.setMinSize(new LogicalSize(WIDGET_W, WIDGET_H));
   await appWindow.setSize(new LogicalSize(WIDGET_W, WIDGET_H));
 }
@@ -42,6 +43,7 @@ async function enterWidgetMode() {
 async function restoreFromWidget() {
   widgetMode.value = false;
   await appWindow.setAlwaysOnTop(false);
+  await appWindow.setMaximizable(true);
   await appWindow.setMinSize(new LogicalSize(720, 500));
   await appWindow.setSize(new LogicalSize(savedSize.w, savedSize.h));
 }

@@ -22,6 +22,7 @@ export const useAgentStore = defineStore("agent", () => {
   const state = ref<AgentState>("idle");
   const isBusy = ref(false);
   const convId = ref<string | null>(null);
+  let happyTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   // ── Conversation lifecycle ──
 
@@ -146,6 +147,12 @@ Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untr
       return;
     }
 
+    isBusy.value = true;
+    state.value = "thinking";
+
+    // Clear any pending happy → idle timeout
+    if (happyTimeoutId) { clearTimeout(happyTimeoutId); happyTimeoutId = null; }
+
     // ── Snooze detection (only for check-in messages, not confirmations) ──
     const prevMsg = messages.value[messages.value.length - 1];
     const isCheckin =
@@ -174,9 +181,6 @@ Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untr
       isStreaming: true,
     };
     messages.value.push(assistantMsg);
-
-    isBusy.value = true;
-    state.value = "thinking";
 
     const assistant = messages.value.find((m) => m.id === assistantId)!;
 
@@ -222,8 +226,9 @@ Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untr
         timestamp: Date.now(),
       });
       state.value = "happy";
-      setTimeout(() => {
+      happyTimeoutId = setTimeout(() => {
         if (state.value === "happy") state.value = "idle";
+        happyTimeoutId = null;
       }, 4000);
     } catch (e) {
       assistant.content = assistant.content || `Error: ${e}`;

@@ -103,6 +103,7 @@ async function saveAnnotation() {
               class="annotation-input"
               placeholder="Describe this file so the agent understands it… (optional)"
               @keydown.enter="saveAnnotation"
+              @blur="saveAnnotation"
             />
             <button class="btn-save" @click="saveAnnotation">
               {{ annotationSaved ? "Saved!" : "Save" }}

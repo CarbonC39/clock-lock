@@ -5,6 +5,7 @@ import {
   ListTodo,
   MessageCircle,
   SendHorizonal,
+  ArrowLeft,
 } from "lucide-vue-next";
 import { marked } from "marked";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -46,7 +47,9 @@ const statusLine = computed(() => {
   const quotes = statusQuotes[agent.state] ?? statusQuotes.idle;
   if (!workspace.path) return "Open a workspace first";
   if (agent.isBusy) return quotes[0];
-  return quotes[Math.floor(Math.random() * quotes.length)];
+  // Pick deterministically from state + minute to avoid flicker
+  const idx = (petState.value.charCodeAt(0) + Math.floor(Date.now() / 60000)) % quotes.length;
+  return quotes[Math.abs(idx)];
 });
 
 // ── Task preview ──
@@ -108,13 +111,13 @@ const allTasks = computed<TaskItem[]>(() => {
 const unchecked = computed(() => allTasks.value.filter((t) => !t.checked));
 const completed = computed(() => allTasks.value.filter((t) => t.checked));
 
-function toggleTask(task: TaskItem) {
+async function toggleTask(task: TaskItem) {
   const lines = workspace.homeMdContent.split("\n");
   const line = lines[task.lineIndex];
   lines[task.lineIndex] = task.checked
     ? line.replace("[x]", "[ ]")
     : line.replace("[ ]", "[x]");
-  workspace.saveHomeMd(lines.join("\n"));
+  await workspace.saveHomeMd(lines.join("\n"));
 }
 
 function addTask() {
@@ -157,8 +160,10 @@ const displayMessages = computed(() =>
 
 function scrollChat() {
   nextTick(() => {
-    if (chatEl.value)
-      chatEl.value.scrollTop = chatEl.value.scrollHeight;
+    if (!chatEl.value) return;
+    const el = chatEl.value;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    if (nearBottom) el.scrollTop = el.scrollHeight;
   });
 }
 watch(() => agent.messages.length, scrollChat);
@@ -183,7 +188,7 @@ function onChatKeydown(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="widget-root" data-tauri-drag-region>
+  <div class="widget-root" data-tauri-drag-region @dblclick.prevent>
     <!-- ═══════ Companion view ═══════ -->
     <div v-if="view === 'companion'" class="view-companion">
       <div class="companion-pet">
@@ -223,7 +228,7 @@ function onChatKeydown(e: KeyboardEvent) {
         <AgentPet :state="petState" size="sm" />
         <span class="expanded-title">Tasks</span>
         <button class="back-btn" @click="view = 'companion'">
-          <Maximize2 :size="12" />
+          <ArrowLeft :size="12" />
         </button>
       </div>
 
@@ -277,7 +282,7 @@ function onChatKeydown(e: KeyboardEvent) {
         <AgentPet :state="petState" size="sm" />
         <span class="expanded-title">Chat</span>
         <button class="back-btn" @click="view = 'companion'">
-          <Maximize2 :size="12" />
+          <ArrowLeft :size="12" />
         </button>
       </div>
 

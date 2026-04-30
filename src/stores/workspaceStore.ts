@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { useDebounceFn } from "@vueuse/core";
 import { useAgentStore } from "./agentStore";
 
 export interface FileNode {
@@ -48,6 +49,9 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       hash.value = wsHash;
       name.value = dirPath.replace(/\\/g, "/").split("/").pop() ?? dirPath;
       path.value = dirPath;
+    } catch (e) {
+      console.error("Failed to open workspace:", e);
+      throw e;
     } finally {
       isLoading.value = false;
     }
@@ -66,11 +70,13 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     fileTree.value = tree;
   }
 
-  async function saveHomeMd(content: string) {
+  async function _saveHomeMd(content: string) {
     if (!homeMdPath.value) return;
     homeMdContent.value = content;
     await invoke("write_file", { path: homeMdPath.value, content });
   }
+
+  const saveHomeMd = useDebounceFn(_saveHomeMd, 500);
 
   async function selectFile(filePath: string) {
     selectedFilePath.value = filePath;
