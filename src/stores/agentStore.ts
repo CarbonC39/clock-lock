@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useWorkspaceStore } from "./workspaceStore";
 import { useSettingsStore } from "./settingsStore";
+import { useSupervisionStore } from "./supervisionStore";
 
 export type AgentState = "idle" | "thinking" | "happy" | "sleepy" | "excited";
 
@@ -145,6 +146,12 @@ Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untr
       return;
     }
 
+    // ── Snooze detection ──
+    const prevMsg = messages.value[messages.value.length - 1];
+    if (prevMsg?.role === "system-note" && prevMsg.content.startsWith("[Supervisor]")) {
+      tryParseSnooze(text.trim()).catch(() => {});
+    }
+
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -234,6 +241,55 @@ Modified: ${git.modified} | Added: ${git.added} | Deleted: ${git.deleted} | Untr
       timestamp: Date.now(),
     };
     messages.value.push(note);
+  }
+
+  async function tryParseSnooze(userText: string) {
+    const sv = useSupervisionStore();
+    const settings = useSettingsStore();
+    if (!settings.settings.base_url) return;
+
+    try {
+      const resp = await fetch(
+        `${settings.settings.base_url}/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(settings.settings.api_key
+              ? { Authorization: `Bearer ${settings.settings.api_key}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            model: settings.settings.model,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "Parse the user's snooze request into hours. Respond ONLY with a JSON object: {\"hours\": <number>, \"reason\": \"<brief reason>\"}. If the user wants to skip supervision for e.g. '1 week', hours=168. If the user message is NOT a snooze/postpone/skip request, respond with {\"hours\": 0}.",
+              },
+              { role: "user", content: userText },
+            ],
+            max_tokens: 40,
+            temperature: 0,
+          }),
+        }
+      );
+
+      if (!resp.ok) return;
+      const data = (await resp.json()) as {
+        choices: { message: { content: string } }[];
+      };
+      const raw = data.choices?.[0]?.message?.content?.trim() ?? "";
+      const json = JSON.parse(raw) as { hours: number; reason?: string };
+      if (json.hours > 0) {
+        sv.setIdleHours(json.hours);
+        pushNote(
+          `[Supervisor] Snoozed for ${json.hours}h${json.reason ? ` — ${json.reason}` : ""}.`
+        );
+      }
+    } catch {
+      // silently fail
+    }
   }
 
   function clear() {
