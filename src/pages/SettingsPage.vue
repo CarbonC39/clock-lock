@@ -257,7 +257,7 @@ async function save() {
 .settings-title {
   font-size: 15px;
   font-weight: 700;
-  color: var(--color-text-primary);
+  color: var(--color-accent-purple);
   margin: 0;
 }
 

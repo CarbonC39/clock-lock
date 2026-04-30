@@ -155,7 +155,7 @@ async function run() {
 }
 .approve-btn:hover {
   background: var(--color-accent-yellow);
-  color: #000;
+  color: var(--color-bg);
 }
 
 .rerun-btn {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { Editor, rootCtx, defaultValueCtx } from "@milkdown/core";
 import { gfm } from "@milkdown/preset-gfm";
 import { listener, listenerCtx } from "@milkdown/plugin-listener";
@@ -17,6 +17,7 @@ const emit = defineEmits<{ "update:content": [string] }>();
 const editorEl = ref<HTMLDivElement>();
 const savedFlash = ref(false);
 let editor: Editor | undefined;
+let currentContent = "";
 
 function flashSaved() {
   savedFlash.value = true;
@@ -27,26 +28,48 @@ const debouncedEmit = useDebounceFn((markdown: string) => {
   emit("update:content", markdown);
 }, 350);
 
-onMounted(async () => {
+async function createEditor(content: string) {
   if (!editorEl.value) return;
+  await editor?.destroy();
+  editor = undefined;
+  currentContent = content || "";
+
   editor = await Editor.make()
     .config((ctx) => {
       ctx.set(rootCtx, editorEl.value!);
-      ctx.set(defaultValueCtx, props.content);
-      ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
-        debouncedEmit(markdown);
-      });
+      ctx.set(defaultValueCtx, currentContent);
     })
     .use(gfm)
     .use(listener)
     .use(history)
     .create();
+
+  editor.config((ctx) => {
+    ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
+      currentContent = markdown;
+      debouncedEmit(markdown);
+    });
+  });
+}
+
+onMounted(async () => {
+  await nextTick();
+  await createEditor(props.content);
 });
 
 onUnmounted(async () => {
   await editor?.destroy();
   editor = undefined;
 });
+
+watch(
+  () => props.content,
+  async (val) => {
+    if (val !== currentContent) {
+      await createEditor(val);
+    }
+  }
+);
 
 function onKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key === "s") {
@@ -111,6 +134,10 @@ function onKeydown(e: KeyboardEvent) {
   flex: 1;
   overflow-y: auto;
   padding: 28px 52px 80px;
+}
+
+.editor-root {
+  min-height: 300px;
 }
 
 /* Scope Milkdown styles via :deep() so they don't leak globally */
