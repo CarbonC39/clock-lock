@@ -36,7 +36,7 @@ const sizeClass = computed(() => `pet-${props.size ?? "md"}`);
 
 .pet-sm  { font-size: 12px; }
 .pet-md  { font-size: 22px; }
-.pet-lg  { font-size: 32px; }
+.pet-lg  { font-size: 36px; }
 
 .pet-thinking { animation: pet-think 1.2s ease-in-out infinite; }
 .pet-sleepy   { animation: pet-float 3s ease-in-out infinite; }

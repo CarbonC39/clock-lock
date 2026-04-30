@@ -107,8 +107,8 @@ function renderMd(src: string): string {
 .bubble-user {
   max-width: 75%;
   padding: 9px 14px;
-  background: var(--color-accent-blue);
-  color: #fff;
+  background: color-mix(in srgb, var(--color-accent-blue) 18%, transparent);
+  color: var(--color-text-primary);
   border-radius: 16px 16px 4px 16px;
   font-size: 13px;
   line-height: 1.55;
@@ -158,13 +158,13 @@ function renderMd(src: string): string {
 
 .stream-cursor {
   color: var(--color-accent-blue);
-  animation: blink 0.9s step-end infinite;
+  animation: blink 1.2s ease-in-out infinite;
   font-weight: 400;
 }
 
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
+  0%, 100% { opacity: 0.25; }
+  50%       { opacity: 1; }
 }
 </style>
 

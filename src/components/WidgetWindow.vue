@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
-import { Maximize2, CheckSquare, MessageCircle, SendHorizonal } from "lucide-vue-next";
+import {
+  Maximize2,
+  ListTodo,
+  MessageCircle,
+  SendHorizonal,
+} from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAgentStore } from "../stores/agentStore";
 import AgentPet from "./AgentPet.vue";
@@ -10,12 +15,68 @@ const emit = defineEmits<{ restore: [] }>();
 const workspace = useWorkspaceStore();
 const agent = useAgentStore();
 
-const tab = ref<"tasks" | "chat">("tasks");
-const hover = ref(false);
+const view = ref<"companion" | "tasks" | "chat">("companion");
+const newTaskText = ref("");
 const chatInput = ref("");
 const chatEl = ref<HTMLDivElement>();
 
-// ── Tasks ──
+// ── Pet state ──
+
+const petState = computed<
+  "idle" | "thinking" | "happy" | "sleepy" | "excited"
+>(() => {
+  if (!workspace.path) return "sleepy";
+  if (agent.isBusy) return "thinking";
+  if (agent.state === "happy") return "happy";
+  return "idle";
+});
+
+const statusQuotes: Record<string, string[]> = {
+  idle: ["Ready to help", "What's up?", "Standing by", "At your service"],
+  thinking: ["Let me look…", "Reading docs…", "Processing…", "Hmm…"],
+  happy: ["Done! ✨", "Nailed it!", "Looking good!", "Nice work!"],
+  sleepy: ["Zzz… tap me?", "Taking a nap…", "So quiet…", "Wake me up?"],
+  excited: ["Ooh, interesting!", "Let's go!", "Love this!", "Exciting!"],
+};
+
+const statusLine = computed(() => {
+  const quotes = statusQuotes[agent.state] ?? statusQuotes.idle;
+  if (!workspace.path) return "Open a workspace first";
+  if (agent.isBusy) return quotes[0];
+  return quotes[Math.floor(Math.random() * quotes.length)];
+});
+
+// ── Task preview ──
+
+const firstTodo = computed(() => {
+  if (!workspace.homeMdContent) return null;
+  const lines = workspace.homeMdContent.split("\n");
+  let inSection = false;
+  for (const line of lines) {
+    if (/^#\s+(todo|progress)/i.test(line)) { inSection = true; continue; }
+    if (/^#\s+/.test(line)) { inSection = false; continue; }
+    if (inSection) {
+      const m = line.match(/^-\s*\[ \]\s+(.+)/);
+      if (m) return m[1].trim();
+    }
+  }
+  return null;
+});
+
+const remainingCount = computed(() => {
+  if (!workspace.homeMdContent) return 0;
+  let count = 0;
+  const lines = workspace.homeMdContent.split("\n");
+  let inSection = false;
+  for (const line of lines) {
+    if (/^#\s+(todo|progress)/i.test(line)) { inSection = true; continue; }
+    if (/^#\s+/.test(line)) { inSection = false; continue; }
+    if (inSection && /^-\s*\[ \]/.test(line)) count++;
+  }
+  return count;
+});
+
+// ── Task list ──
 
 interface TaskItem {
   lineIndex: number;
@@ -34,7 +95,8 @@ const allTasks = computed<TaskItem[]>(() => {
     if (/^#\s+/.test(ln)) { inSection = false; continue; }
     if (inSection) {
       const m = ln.match(/^-\s*\[([ x])\]\s+(.*)/);
-      if (m) result.push({ lineIndex: i, text: m[2] || "", checked: m[1] === "x" });
+      if (m)
+        result.push({ lineIndex: i, text: m[2] || "", checked: m[1] === "x" });
     }
   }
   return result;
@@ -42,7 +104,6 @@ const allTasks = computed<TaskItem[]>(() => {
 
 const unchecked = computed(() => allTasks.value.filter((t) => !t.checked));
 const completed = computed(() => allTasks.value.filter((t) => t.checked));
-const newTaskText = ref("");
 
 function toggleTask(task: TaskItem) {
   const lines = workspace.homeMdContent.split("\n");
@@ -80,32 +141,18 @@ function addTask() {
 
 // ── Chat ──
 
-const petState = computed<"idle" | "thinking" | "happy" | "sleepy" | "excited">(() => {
-  if (!workspace.path) return "sleepy";
-  if (agent.isBusy) return "thinking";
-  if (agent.state === "happy") return "happy";
-  return "idle";
-});
-
-const statusText = computed(() => {
-  if (!workspace.path) return "No workspace";
-  if (agent.isBusy) return "Thinking…";
-  if (agent.state === "happy") return "Ready";
-  return "Idle";
-});
-
 const displayMessages = computed(() =>
-  agent.messages.filter(
-    (m) => m.role === "user" || m.role === "assistant"
-  ).slice(-20)
+  agent.messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .slice(-20)
 );
 
 function scrollChat() {
   nextTick(() => {
-    if (chatEl.value) chatEl.value.scrollTop = chatEl.value.scrollHeight;
+    if (chatEl.value)
+      chatEl.value.scrollTop = chatEl.value.scrollHeight;
   });
 }
-
 watch(() => agent.messages.length, scrollChat);
 watch(
   () => agent.messages[agent.messages.length - 1]?.content,
@@ -128,47 +175,79 @@ function onChatKeydown(e: KeyboardEvent) {
 </script>
 
 <template>
-  <div
-    class="widget-root"
-    @mouseenter="hover = true"
-    @mouseleave="hover = false"
-  >
-    <!-- ── Drag-only tab bar ── -->
-    <div class="widget-tabs" data-tauri-drag-region>
-      <button class="tab-btn" :class="{ active: tab === 'tasks' }" @click="tab = 'tasks'">
-        <CheckSquare :size="13" />
-        <span>Tasks</span>
-      </button>
-      <button class="tab-btn" :class="{ active: tab === 'chat' }" @click="tab = 'chat'">
-        <MessageCircle :size="13" />
-        <span>Chat</span>
-      </button>
-      <div class="tab-spacer" />
-      <Transition name="btn-fade">
-        <button v-if="hover" class="restore-btn" title="Restore" @click="emit('restore')">
+  <div class="widget-root" data-tauri-drag-region>
+    <!-- ═══════ Companion view ═══════ -->
+    <div v-if="view === 'companion'" class="view-companion">
+      <div class="companion-pet">
+        <Transition name="pet-fade" mode="out-in">
+          <AgentPet :key="petState" :state="petState" size="lg" />
+        </Transition>
+      </div>
+      <p class="companion-status">{{ statusLine }}</p>
+
+      <div v-if="firstTodo" class="companion-todo">
+        <span class="todo-dot" />
+        <span class="todo-text">{{ firstTodo }}</span>
+        <span v-if="remainingCount > 1" class="todo-extra">
+          +{{ remainingCount - 1 }} more
+        </span>
+      </div>
+      <p v-else-if="workspace.path" class="companion-todo muted">
+        Everything done 🎉
+      </p>
+
+      <div class="companion-actions">
+        <button class="action-btn" title="Tasks" @click="view = 'tasks'">
+          <ListTodo :size="15" />
+        </button>
+        <button class="action-btn" title="Chat" @click="view = 'chat'">
+          <MessageCircle :size="15" />
+        </button>
+        <button class="action-btn" title="Restore" @click="emit('restore')">
           <Maximize2 :size="14" />
         </button>
-      </Transition>
+      </div>
     </div>
 
-    <!-- ═══ Tasks tab ═══ -->
-    <div v-if="tab === 'tasks'" class="widget-body">
+    <!-- ═══════ Tasks view ═══════ -->
+    <div v-else-if="view === 'tasks'" class="view-expanded">
+      <div class="expanded-header">
+        <AgentPet :state="petState" size="sm" />
+        <span class="expanded-title">Tasks</span>
+        <button class="back-btn" @click="view = 'companion'">
+          <Maximize2 :size="12" />
+        </button>
+      </div>
+
       <div class="task-scroll">
+        <!-- Active tasks -->
         <div v-if="unchecked.length" class="task-group">
-          <div class="task-row" v-for="t in unchecked" :key="t.lineIndex">
+          <div
+            v-for="t in unchecked"
+            :key="t.lineIndex"
+            class="task-row"
+          >
             <button class="task-cb" @click="toggleTask(t)" />
             <span class="task-label">{{ t.text || "…" }}</span>
           </div>
         </div>
 
-        <div v-if="completed.length" class="task-group done-group">
-          <div class="task-row done" v-for="t in completed" :key="'d' + t.lineIndex">
-            <button class="task-cb on" @click="toggleTask(t)">
-              <span class="check-mark" />
-            </button>
-            <span class="task-label">{{ t.text || "…" }}</span>
+        <!-- Completed -->
+        <template v-if="completed.length">
+          <div class="task-section-label">Completed</div>
+          <div class="task-group">
+            <div
+              v-for="t in completed"
+              :key="'d' + t.lineIndex"
+              class="task-row done"
+            >
+              <button class="task-cb on" @click="toggleTask(t)">
+                <span class="check-mark" />
+              </button>
+              <span class="task-label">{{ t.text || "…" }}</span>
+            </div>
           </div>
-        </div>
+        </template>
 
         <div v-if="!allTasks.length" class="empty-hint">No tasks yet</div>
       </div>
@@ -177,23 +256,26 @@ function onChatKeydown(e: KeyboardEvent) {
         <input
           v-model="newTaskText"
           class="add-input"
-          placeholder="New task…"
+          placeholder="Add a task…"
           @keydown.enter="addTask()"
           @keydown.stop
         />
       </div>
     </div>
 
-    <!-- ═══ Chat tab ═══ -->
-    <div v-else class="widget-body">
-      <div class="chat-header">
+    <!-- ═══════ Chat view ═══════ -->
+    <div v-else class="view-expanded">
+      <div class="expanded-header">
         <AgentPet :state="petState" size="sm" />
-        <span class="status-label">{{ statusText }}</span>
+        <span class="expanded-title">Chat</span>
+        <button class="back-btn" @click="view = 'companion'">
+          <Maximize2 :size="12" />
+        </button>
       </div>
 
       <div ref="chatEl" class="chat-scroll">
         <div v-if="!displayMessages.length" class="empty-hint">
-          Open a workspace and send a message
+          Ask me anything about your project
         </div>
         <div
           v-for="m in displayMessages"
@@ -201,9 +283,9 @@ function onChatKeydown(e: KeyboardEvent) {
           class="chat-msg"
           :class="m.role"
         >
-          <div class="msg-text">
+          <span class="msg-text">
             {{ m.content || (m.isStreaming ? "···" : "") }}
-          </div>
+          </span>
           <span v-if="m.isStreaming" class="stream-cursor">▌</span>
         </div>
       </div>
@@ -211,13 +293,13 @@ function onChatKeydown(e: KeyboardEvent) {
       <div class="chat-input-row" :class="{ busy: agent.isBusy }">
         <input
           v-model="chatInput"
-          class="chat-text-input"
+          class="chat-input-box"
           placeholder="Message…"
           :disabled="agent.isBusy"
           @keydown="onChatKeydown"
         />
         <button
-          class="chat-send-btn"
+          class="chat-send"
           :disabled="agent.isBusy || !chatInput.trim()"
           @click="sendChat"
         >
@@ -236,70 +318,136 @@ function onChatKeydown(e: KeyboardEvent) {
   flex-direction: column;
   background: var(--color-bg);
   font-size: 13px;
+  user-select: none;
 }
 
-/* ── Tab bar (drag region) ── */
-.widget-tabs {
+/* ═══════ Companion view ═══════ */
+.view-companion {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  gap: 10px;
+}
+
+.companion-pet {
+  padding: 8px;
+  min-height: 52px;
   display: flex;
   align-items: center;
-  height: 32px;
-  padding: 0 4px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
+  justify-content: center;
+}
+
+.companion-status {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin: 0;
+  text-align: center;
+  min-height: 18px;
+}
+
+.companion-todo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--color-accent-blue) 6%, transparent);
+  border-radius: 20px;
+  max-width: 100%;
+}
+.companion-todo.muted { background: none; color: var(--color-text-muted); font-style: italic; }
+
+.todo-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent-blue);
   flex-shrink: 0;
-  gap: 2px;
 }
 
-.tab-btn {
+.todo-text {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-extra {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.companion-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.action-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.action-btn:hover {
+  color: var(--color-accent-purple);
+  background: color-mix(in srgb, var(--color-accent-purple) 10%, transparent);
+}
+
+/* ═══════ Expanded views (tasks / chat) ═══════ */
+.view-expanded {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.expanded-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 8px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--color-surface) 60%, var(--color-bg));
+}
+
+.expanded-title {
+  flex: 1;
   font-size: 12px;
   font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
   background: none;
   border: none;
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all var(--transition);
-  white-space: nowrap;
 }
-.tab-btn:hover { color: var(--color-text-primary); background: var(--color-surface-hover); }
-.tab-btn.active { color: var(--color-accent-blue); }
-
-.tab-spacer { flex: 1; }
-
-.restore-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all var(--transition);
-}
-.restore-btn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text-primary);
-  border-color: var(--color-text-muted);
-}
-
-.btn-fade-enter-active, .btn-fade-leave-active { transition: opacity 0.12s ease; }
-.btn-fade-enter-from, .btn-fade-leave-to { opacity: 0; }
-
-/* ── Body ── */
-.widget-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
+.back-btn:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
 
 /* ── Tasks ── */
 .task-scroll {
@@ -308,19 +456,23 @@ function onChatKeydown(e: KeyboardEvent) {
   padding: 8px;
 }
 
-.task-group { display: flex; flex-direction: column; gap: 1px; }
+.task-group { display: flex; flex-direction: column; }
 
-.done-group {
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--color-border);
+.task-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  padding: 10px 4px 4px;
+  margin-top: 4px;
 }
 
 .task-row {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 5px 4px;
+  padding: 6px 4px;
   border-radius: var(--radius-sm);
   transition: background-color var(--transition);
 }
@@ -328,24 +480,28 @@ function onChatKeydown(e: KeyboardEvent) {
 .task-row.done .task-label { text-decoration: line-through; color: var(--color-text-muted); }
 
 .task-cb {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
-  background: transparent;
-  border: 1.5px solid var(--color-border);
-  border-radius: 3px;
-  cursor: pointer;
-  padding: 0;
-  transition: all var(--transition);
   display: flex;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  border: 1.5px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--transition);
 }
 .task-cb:hover { border-color: var(--color-accent-blue); }
-.task-cb.on { background: var(--color-accent-blue); border-color: var(--color-accent-blue); }
+.task-cb.on {
+  background: var(--color-accent-blue);
+  border-color: var(--color-accent-blue);
+}
 .check-mark {
   display: block;
-  width: 4px; height: 8px;
+  width: 4px;
+  height: 8px;
   border: solid #fff;
   border-width: 0 1.5px 1.5px 0;
   transform: rotate(45deg) translate(-1px, -1px);
@@ -355,7 +511,6 @@ function onChatKeydown(e: KeyboardEvent) {
 
 .add-row {
   padding: 6px 8px;
-  border-top: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -375,18 +530,6 @@ function onChatKeydown(e: KeyboardEvent) {
 .add-input::placeholder { color: var(--color-text-muted); font-size: 12px; }
 
 /* ── Chat ── */
-.chat-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-  background: var(--color-surface);
-}
-
-.status-label { font-size: 12px; color: var(--color-text-muted); font-style: italic; }
-
 .chat-scroll {
   flex: 1;
   overflow-y: auto;
@@ -398,8 +541,8 @@ function onChatKeydown(e: KeyboardEvent) {
 
 .chat-msg {
   max-width: 88%;
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
+  padding: 6px 9px;
+  border-radius: 6px;
   font-size: 12px;
   line-height: 1.5;
   word-break: break-word;
@@ -407,43 +550,44 @@ function onChatKeydown(e: KeyboardEvent) {
 
 .chat-msg.user {
   align-self: flex-end;
-  background: var(--color-accent-blue);
-  color: #fff;
+  background: color-mix(in srgb, var(--color-accent-blue) 18%, transparent);
+  color: var(--color-text-primary);
 }
 
 .chat-msg.assistant {
   align-self: flex-start;
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
   color: var(--color-text-secondary);
 }
 
 .msg-text { white-space: pre-wrap; }
 
 .stream-cursor {
-  align-self: flex-start;
+  display: inline-block;
   color: var(--color-accent-blue);
   font-weight: 400;
-  margin-left: 4px;
-  animation: blink 0.9s step-end infinite;
+  margin-left: 2px;
+  animation: cursor-pulse 1.2s ease-in-out infinite;
 }
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes cursor-pulse {
+  0%,
+  100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
 
 .chat-input-row {
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
   flex-shrink: 0;
 }
 .chat-input-row.busy { opacity: 0.6; }
 
-.chat-text-input {
+.chat-input-box {
   flex: 1;
   padding: 5px 8px;
-  background: var(--color-bg);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
@@ -452,10 +596,10 @@ function onChatKeydown(e: KeyboardEvent) {
   outline: none;
   transition: border-color var(--transition);
 }
-.chat-text-input:focus { border-color: var(--color-accent-blue); }
-.chat-text-input::placeholder { color: var(--color-text-muted); font-size: 12px; }
+.chat-input-box:focus { border-color: var(--color-accent-blue); }
+.chat-input-box::placeholder { color: var(--color-text-muted); font-size: 12px; }
 
-.chat-send-btn {
+.chat-send {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -463,21 +607,29 @@ function onChatKeydown(e: KeyboardEvent) {
   height: 30px;
   flex-shrink: 0;
   background: none;
-  border: 1px solid var(--color-border);
+  border: none;
   border-radius: var(--radius-sm);
   color: var(--color-accent-blue);
   cursor: pointer;
   transition: all var(--transition);
 }
-.chat-send-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent-blue) 8%, transparent); }
-.chat-send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.chat-send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent-blue) 10%, transparent);
+}
+.chat-send:disabled { opacity: 0.3; cursor: not-allowed; }
 
-/* ── Empty ── */
+/* ── Shared ── */
 .empty-hint {
   font-size: 12px;
   color: var(--color-text-muted);
   text-align: center;
-  padding: 20px 0;
+  padding: 24px 0;
   font-style: italic;
 }
+
+/* ── Transitions ── */
+.pet-fade-enter-active,
+.pet-fade-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.pet-fade-enter-from { opacity: 0; transform: translateY(4px); }
+.pet-fade-leave-to { opacity: 0; transform: translateY(-4px); }
 </style>
