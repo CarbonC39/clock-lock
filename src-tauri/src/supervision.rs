@@ -7,7 +7,7 @@ pub struct SupervisionState {
     pub last_activity: Mutex<Instant>,
     pub idle_hours: Mutex<u64>,
     pub dnd: Mutex<bool>,
-    pub handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    pub handle: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
 }
 
 impl SupervisionState {
@@ -51,7 +51,7 @@ pub fn start_supervision(app: AppHandle) {
         }
     }
 
-    let handle = tokio::spawn(async move {
+    let handle = tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(300)).await;
 
