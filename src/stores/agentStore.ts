@@ -34,7 +34,7 @@ export function getSlashCommands() {
   return Object.entries(SLASH_COMMANDS).map(([cmd, id]) => ({ cmd, id }));
 }
 
-function expandSlashCommand(cmd: string, _workspace: ReturnType<typeof useWorkspaceStore>): string | null {
+function expandSlashCommand(cmd: string, workspace: ReturnType<typeof useWorkspaceStore>): string | null {
   switch (cmd) {
     case "/status":
       return `Give a brief status update. Read home.md to check progress, then check git status. Summarize what's been done and what's pending.`;
@@ -42,14 +42,22 @@ function expandSlashCommand(cmd: string, _workspace: ReturnType<typeof useWorksp
       return `Read home.md and list all unchecked tasks from the Progress section. For each one, give a one-sentence nudge.`;
     case "/review":
       return `Review recent git changes. Read any modified files that look important, then give a concise code review with specific suggestions.`;
+    case "/scan": {
+      if (!workspace.path) return null;
+      const fileList = workspace.fileTree
+        .map((n) => `${n.is_dir ? "📁" : "📄"} ${n.name}${n.git_status ? ` [${n.git_status}]` : ""}`)
+        .slice(0, 50).join("\n");
+      workspace.isNewProject = false;
+      return `Scan this project and write home.md using tools. File tree:\n${fileList}\n\n1. Use <tool>read_file</tool> on a few key files (package.json, main entry, config files)\n2. Use <tool>write_home_md</tool> to save this template:\n\n# Overview\n[2-3 sentences about the project]\n\n# Notes\n[Any observations about tools, structure, interesting files]\n\n# Progress\n- [ ] Review the codebase\n- [ ] Set up the development environment`;
+    }
     case "/summarize":
       return `Summarize our conversation so far into a compact paragraph. Include key decisions, what we've done, and what's pending. This summary will replace older messages to save context space.`;
     case "/focus":
       const sv = useSupervisionStore();
       sv.setDnd(!sv.dnd);
-      return null; // handled client-side
+      return null;
     case "/help":
-      return null; // handled client-side
+      return null;
     default:
       return null;
   }
@@ -349,35 +357,6 @@ Guidelines:
     } catch { /* silent */ }
   }
 
-  async function scanProject() {
-    const workspace = useWorkspaceStore();
-    if (!workspace.path || isBusy.value) return;
-    workspace.isNewProject = false;
-
-    const fileList = workspace.fileTree
-      .map((n) => `${n.is_dir ? "📁" : "📄"} ${n.name}${n.git_status ? ` [${n.git_status}]` : ""}`)
-      .slice(0, 50).join("\n");
-
-    pushNote("Scanning project files…");
-    // Use the tool directly: send a message that asks agent to scan and write home.md
-    await sendMessage(`Scan this project and write home.md using tools. File tree:
-${fileList}
-
-1. Use <tool>list_dir</tool> if you need more detail
-2. Read a few key files with <tool>read_file</tool>
-3. Use <tool>write_home_md</tool> to save this template:
-
-# Overview
-[2-3 sentences about the project]
-
-# Notes
-[Any observations about tools, structure, interesting files]
-
-# Progress
-- [ ] Review the codebase
-- [ ] Set up the development environment`);
-  }
-
   function clear() {
     const workspace = useWorkspaceStore();
     if (workspace.hash && convId.value) {
@@ -388,5 +367,5 @@ ${fileList}
     isBusy.value = false;
   }
 
-  return { messages, state, isBusy, sendMessage, pushNote, clear, loadConversation, scanProject };
+  return { messages, state, isBusy, sendMessage, pushNote, clear, loadConversation };
 });

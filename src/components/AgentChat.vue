@@ -102,7 +102,7 @@ onMounted(() => {
         <p>
           This looks like a new project. I can scan the files and write an overview to <strong>home.md</strong>.
         </p>
-        <button class="scan-btn" :disabled="agent.isBusy" @click="agent.scanProject()">
+        <button class="scan-btn" :disabled="agent.isBusy" @click="inputText = '/scan'">
           <ScanEye :size="14" />
           {{ agent.isBusy ? "Scanning…" : "Scan &amp; summarize" }}
         </button>
