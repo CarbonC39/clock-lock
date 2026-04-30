@@ -38,18 +38,15 @@ async function createEditor(content: string) {
     .config((ctx) => {
       ctx.set(rootCtx, editorEl.value!);
       ctx.set(defaultValueCtx, currentContent);
+      ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
+        currentContent = markdown;
+        debouncedEmit(markdown);
+      });
     })
     .use(gfm)
     .use(listener)
     .use(history)
     .create();
-
-  editor.config((ctx) => {
-    ctx.get(listenerCtx).markdownUpdated((_ctx, markdown) => {
-      currentContent = markdown;
-      debouncedEmit(markdown);
-    });
-  });
 }
 
 onMounted(async () => {
