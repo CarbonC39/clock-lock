@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { ref, computed } from "vue";
 import { marked } from "marked";
+import { Wrench, ChevronDown, ChevronRight } from "lucide-vue-next";
 import type { ChatMessage } from "../stores/agentStore";
 import BashBlock from "./BashBlock.vue";
 import DiffView from "./DiffView.vue";
@@ -8,6 +9,8 @@ import DiffView from "./DiffView.vue";
 marked.setOptions({ gfm: true, breaks: true });
 
 const props = defineProps<{ message: ChatMessage }>();
+
+const toolExpanded = ref(false);
 
 interface Segment {
   type: "markdown" | "bash" | "diff";
@@ -56,6 +59,16 @@ function renderMd(src: string): string {
     {{ message.content }}
   </div>
 
+  <!-- Tool call result -->
+  <div v-else-if="message.role === 'tool'" class="msg-tool">
+    <button class="tool-toggle" @click="toolExpanded = !toolExpanded">
+      <Wrench :size="11" />
+      <span>{{ message.toolName }}</span>
+      <component :is="toolExpanded ? ChevronDown : ChevronRight" :size="10" />
+    </button>
+    <pre v-if="toolExpanded" class="tool-result">{{ message.toolResult }}</pre>
+  </div>
+
   <!-- User message -->
   <div v-else-if="message.role === 'user'" class="msg-user">
     <div class="bubble-user">{{ message.content }}</div>
@@ -96,6 +109,45 @@ function renderMd(src: string): string {
   text-align: center;
   padding: 4px 16px;
   font-style: italic;
+}
+
+/* ── Tool call ── */
+.msg-tool {
+  padding: 2px 0;
+}
+
+.tool-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--color-accent-purple) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 18%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-purple);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.tool-toggle:hover {
+  background: color-mix(in srgb, var(--color-accent-purple) 14%, transparent);
+}
+
+.tool-result {
+  margin: 4px 0 4px 8px;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border-left: 2px solid var(--color-accent-purple);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 /* ── User bubble ── */

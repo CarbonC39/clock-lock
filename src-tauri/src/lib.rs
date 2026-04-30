@@ -15,6 +15,7 @@ use commands::memory::{
 };
 use commands::settings::{get_settings, save_settings};
 use commands::shell::{classify_command, run_command};
+use commands::tools::invoke_tool;
 use supervision::{
     configure_supervision, report_activity, start_supervision, stop_supervision,
     SupervisionState,
@@ -75,6 +76,8 @@ pub fn run() {
             configure_supervision,
             start_supervision,
             stop_supervision,
+            // tools
+            invoke_tool,
         ])
         .setup(|app| {
             // ── System tray ──

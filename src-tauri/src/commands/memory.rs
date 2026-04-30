@@ -232,3 +232,34 @@ pub async fn get_events(
         })
         .collect())
 }
+
+/// Direct helper for tool execution (not a Tauri command)
+pub async fn search_messages_direct(
+    app: &AppHandle,
+    workspace_hash: &str,
+    query: &str,
+    limit: u32,
+) -> Result<Vec<MsgRecord>, String> {
+    let pool = get_pool(app, workspace_hash).await?;
+    let rows = sqlx::query(
+        "SELECT m.id, m.role, m.content FROM messages m
+         JOIN messages_fts f ON m.id = f.rowid
+         WHERE messages_fts MATCH ?
+         ORDER BY rank
+         LIMIT ?",
+    )
+    .bind(query)
+    .bind(limit as i64)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(rows
+        .iter()
+        .map(|r| MsgRecord {
+            id: r.get("id"),
+            role: r.get("role"),
+            content: r.get("content"),
+        })
+        .collect())
+}

@@ -139,6 +139,7 @@ onMounted(() => {
           {{ settings.settings.provider === "ollama" ? "Ollama" : "Cloud" }}
           · {{ settings.settings.model }}
         </span>
+        <span class="slash-hint">/help for commands</span>
       </div>
     </div>
   </div>
@@ -348,12 +349,18 @@ onMounted(() => {
 .input-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
 }
 
 .model-badge {
   font-size: 10.5px;
   color: var(--color-text-muted);
   font-family: var(--font-mono);
+}
+
+.slash-hint {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  opacity: 0.5;
 }
 </style>

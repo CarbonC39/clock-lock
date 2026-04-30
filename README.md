@@ -14,7 +14,10 @@ Built with **Tauri v2 + Vue 3 + Rust**.
 
 ### AI Agent Chat
 - **Streaming responses** — real-time token-by-token rendering via SSE, OpenAI-compatible (OpenAI, DeepSeek, etc.) and Ollama local models.
-- **Interactive bash blocks** — suggested shell commands are classified as safe (auto-run) or unsafe (Approve & Run required). High-risk commands are blocked. Execution is workspace-locked.
+- **Tool-using agent** — the agent can read files, search the codebase, list directories, check git status, and write to home.md autonomously. Tools are invoked via `<tool>` blocks parsed by the frontend; results are fed back in a loop (up to 5 rounds).
+- **Slash commands** — type `/status`, `/remind`, `/review`, `/scan`, `/summarize`, `/focus`, or `/help` for quick actions.
+- **Home.md editing** — the agent can update the project overview directly using `write_home_md` or `append_section` tools. Init scan writes results automatically.
+- **Interactive bash blocks** — suggested shell commands are classified as safe (auto-run) or unsafe (Approve &amp; Run required). High-risk commands are blocked. Execution is workspace-locked.
 - **Diff view** — agent-proposed file edits rendered as syntax-highlighted unified diffs with an "Apply changes" button. Originals backed up to `.clocklock/drafts/`.
 - **Markdown rendering** — agent responses support GitHub-flavored Markdown with syntax-highlighted code blocks.
 
