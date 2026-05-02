@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { Maximize2, SendHorizonal, CheckCircle2 } from "lucide-vue-next";
+import { Maximize2, SendHorizonal, CheckCircle2, Zap, Heart, Eye } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAgentStore } from "../stores/agentStore";
 import AgentPet from "./AgentPet.vue";
@@ -25,23 +25,21 @@ const statusLine = computed(() => {
   if (!workspace.path) return "OFFLINE";
   if (agent.currentTool) {
     const tools: Record<string, string> = {
-      read_file: "READING...",
-      list_dir: "SCANNING...",
-      read_home_md: "CHECKING GOALS...",
-      write_home_md: "UPDATING...",
-      get_git_status: "GIT CHECK...",
-      run_bash: "BASH RUN...",
+      read_file: "READING",
+      list_dir: "SCANNING",
+      read_home_md: "CHECKING",
+      write_home_md: "SAVING",
+      get_git_status: "GIT CHECK",
+      run_bash: "SHELL",
     };
-    return tools[agent.currentTool] ?? "WORKING...";
+    return tools[agent.currentTool] ?? "BUSY";
   }
-  if (agent.isBusy) return "THINKING...";
   return agent.state.toUpperCase();
 });
 
 const lastAgentMsg = computed(() => {
   const msg = [...agent.messages].reverse().find(m => m.role === "assistant");
-  if (!msg) return null;
-  return msg.content.length > 80 ? msg.content.slice(0, 77) + "..." : msg.content;
+  return msg ? msg.content : null;
 });
 
 const firstTodo = computed(() => {
@@ -75,9 +73,8 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function interact() {
-  const triggers = ["How are we doing?", "Give me a high-five!", "I'm working hard!", "Status check"];
-  const rand = triggers[Math.floor(Math.random() * triggers.length)];
-  sendQuick(rand);
+  const triggers = ["How are we doing?", "Give me a high-five!", "Status report"];
+  sendQuick(triggers[Math.floor(Math.random() * triggers.length)]);
 }
 </script>
 
@@ -85,14 +82,13 @@ function interact() {
   <div class="tamagotchi-shell">
     <div class="device-body" data-tauri-drag-region>
       
+      <!-- TOP SCREEN: Maximized -->
       <div class="device-screen">
-        <!-- Header: Status + Pet -->
         <div class="screen-header">
           <div class="pet-wrapper" @click="interact">
             <AgentPet :state="petState" size="sm" />
           </div>
           <div class="status-box">
-            <div class="status-dot" :class="agent.isBusy ? 'busy' : 'ready'"></div>
             <span class="status-text">{{ statusLine }}</span>
           </div>
           <button class="restore-btn" @click="emit('restore')">
@@ -100,13 +96,14 @@ function interact() {
           </button>
         </div>
 
-        <!-- Main Area -->
         <div class="screen-main">
-          <div v-if="lastAgentMsg && showBubble" class="speech-bubble" @click="showBubble = false">
+          <!-- Full Agent Response -->
+          <div v-if="lastAgentMsg && showBubble" class="agent-response" @click="showBubble = false">
             <p>{{ lastAgentMsg }}</p>
           </div>
 
-          <div class="task-view" v-else>
+          <!-- Task View -->
+          <div v-else class="task-view">
             <div v-if="firstTodo" class="todo-card">
               <span class="todo-label">GOAL</span>
               <p class="todo-text">{{ firstTodo }}</p>
@@ -119,41 +116,38 @@ function interact() {
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Integrated Input -->
-        <div class="screen-input-area">
+      <!-- MIDDLE: Buttons -->
+      <div class="physical-controls">
+        <button class="btn-circle" @click="sendQuick('/status')" title="Status">
+          <Zap :size="12" />
+        </button>
+        <button class="btn-circle" @click="sendQuick('/remind')" title="Nudge">
+          <Heart :size="12" />
+        </button>
+        <button class="btn-circle" @click="showBubble = !showBubble" title="View">
+          <Eye :size="12" />
+        </button>
+      </div>
+
+      <!-- BOTTOM: External Input Bar -->
+      <div class="external-input-area">
+        <div class="input-container">
+          <span class="prompt-icon">></span>
           <input
             v-model="quickInput"
-            class="lcd-input"
-            placeholder="ASK ME..."
+            class="external-input"
+            placeholder="COMMAND..."
             :disabled="agent.isBusy"
             @keydown="onKeydown"
           />
+          <button class="send-icon-btn" :disabled="!quickInput.trim()" @click="sendQuick()">
+            <SendHorizonal :size="12" />
+          </button>
         </div>
       </div>
 
-      <!-- Labeled Physical Controls -->
-      <div class="physical-controls">
-        <div class="control-group">
-          <button class="btn-circle" @click="sendQuick('/status')">
-            <Maximize2 :size="10" style="transform: rotate(45deg)" />
-          </button>
-          <span class="control-label">STATUS</span>
-        </div>
-        <div class="control-group">
-          <button class="btn-circle" @click="sendQuick('/remind')">
-            <span style="font-size: 10px">♥</span>
-          </button>
-          <span class="control-label">NUDGE</span>
-        </div>
-        <div class="control-group">
-          <button class="btn-circle" @click="showBubble = !showBubble">
-            <span style="font-size: 10px">💬</span>
-          </button>
-          <span class="control-label">VIEW</span>
-        </div>
-      </div>
-      
       <div class="keychain-loop"></div>
     </div>
   </div>
@@ -172,20 +166,20 @@ function interact() {
 .device-body {
   position: relative;
   width: 240px;
-  height: 130px;
+  height: 210px; /* Long handheld look */
   background: linear-gradient(145deg, #ddd6fe, #fbcfe8);
-  border-radius: 40px;
+  border-radius: 35px;
   border: 3px solid rgba(255, 255, 255, 0.4);
   box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-  padding: 12px 18px;
+  padding: 16px; /* Restored edge padding */
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px; /* Balanced gap */
   -webkit-app-region: drag;
 }
 
 .device-screen {
-  flex: 1;
+  flex: 1; /* Takes most space */
   background: #fdf6e3;
   border: 4px solid #333;
   border-radius: 12px;
@@ -193,9 +187,9 @@ function interact() {
   flex-direction: column;
   overflow: hidden;
   -webkit-app-region: no-drag;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1) inset;
 }
 
-/* ── Header ── */
 .screen-header {
   display: flex;
   align-items: center;
@@ -205,133 +199,46 @@ function interact() {
   gap: 8px;
 }
 
-.pet-wrapper { cursor: pointer; }
+.status-box { flex: 1; text-align: center; }
+.status-text { font-size: 9px; font-weight: 900; color: #333; letter-spacing: 0.5px; }
 
-.status-box {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.status-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-}
-.status-dot.ready { background: #2ecc71; box-shadow: 0 0 4px #2ecc71; }
-.status-dot.busy  { background: #e74c3c; box-shadow: 0 0 4px #e74c3c; animation: pulse 1s infinite; }
-
-@keyframes pulse { 50% { opacity: 0.5; } }
-
-.status-text {
-  font-size: 9px;
-  font-weight: 900;
-  color: #333;
-  letter-spacing: 0.5px;
-}
-
-/* ── Main Area ── */
 .screen-main {
   flex: 1;
-  position: relative;
   padding: 8px;
   background-image: radial-gradient(#000 0.5px, transparent 0.5px);
-  background-size: 3px 3px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  background-size: 4px 4px;
+  overflow-y: auto;
 }
+.screen-main::-webkit-scrollbar { width: 3px; }
+.screen-main::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
 
-.speech-bubble {
-  background: #fff;
-  border: 2px solid #333;
-  border-radius: 8px;
-  padding: 6px 8px;
-  font-size: 10px;
-  color: #333;
-  font-weight: 600;
-  line-height: 1.2;
-  cursor: pointer;
-  animation: popIn 0.2s ease-out;
-}
-
-@keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-
-.task-view {
-  width: 100%;
-}
-
-.todo-card {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  position: relative;
-  padding-right: 25px;
-}
-
-.todo-label { font-size: 8px; font-weight: 900; color: #666; }
-.todo-text {
+.agent-response {
   font-size: 11px;
+  color: #111;
   font-weight: 700;
-  color: #222;
-  font-family: var(--font-mono);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.complete-btn {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: #2ecc71;
+  line-height: 1.4;
   cursor: pointer;
+  white-space: pre-wrap;
 }
 
-.empty-view { text-align: center; font-size: 10px; font-weight: 900; color: #888; }
-
-/* ── Footer / Input ── */
-.screen-input-area {
-  padding: 4px 8px;
-  background: rgba(0,0,0,0.08);
-  border-top: 1px solid rgba(0,0,0,0.1);
-}
-
-.lcd-input {
-  width: 100%;
-  background: rgba(255,255,255,0.4);
-  border: 1px solid rgba(0,0,0,0.2);
-  border-radius: 4px;
-  font-size: 10px;
-  font-family: var(--font-mono);
-  padding: 2px 6px;
-  outline: none;
-  color: #222;
-}
-.lcd-input::placeholder { color: #888; }
+.task-view { width: 100%; }
+.todo-card { display: flex; flex-direction: column; gap: 2px; position: relative; padding-right: 25px; }
+.todo-label { font-size: 8px; font-weight: 900; color: #666; }
+.todo-text { font-size: 11px; font-weight: 700; color: #222; font-family: var(--font-mono); }
+.complete-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background: none; border: none; color: #2ecc71; cursor: pointer; }
+.empty-view { text-align: center; font-size: 10px; font-weight: 900; color: #888; padding-top: 10px; }
 
 /* ── Physical Controls ── */
 .physical-controls {
   display: flex;
   justify-content: space-around;
-  padding: 0 10px;
+  padding: 0 20px;
+  -webkit-app-region: no-drag;
 }
-
-.control-group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
 .btn-circle {
-  width: 24px;
-  height: 24px;
-  background: rgba(255,255,255,0.7);
+  width: 26px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.7);
   border: 2px solid rgba(0,0,0,0.1);
   border-radius: 50%;
   display: flex;
@@ -339,21 +246,41 @@ function interact() {
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 2px 0 rgba(0,0,0,0.15);
-  -webkit-app-region: no-drag;
+  color: #333;
 }
 .btn-circle:active { transform: translateY(1px); box-shadow: none; }
 
-.control-label {
-  font-size: 8px;
-  font-weight: 900;
-  color: rgba(0,0,0,0.4);
-  letter-spacing: 0.5px;
+/* ── External Input ── */
+.external-input-area {
+  padding: 0 4px;
 }
+.input-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.08);
+  border-radius: 8px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+.prompt-icon { font-size: 11px; font-weight: 900; color: #e74c3c; }
+.external-input {
+  flex: 1;
+  background: none;
+  border: none;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  outline: none;
+  color: #444;
+}
+.send-icon-btn { background: none; border: none; color: #333; cursor: pointer; opacity: 0.7; }
+.send-icon-btn:disabled { opacity: 0.2; }
 
 .keychain-loop {
   position: absolute;
   top: -10px;
-  left: 25px;
+  left: 30px;
   width: 20px;
   height: 20px;
   border: 4px solid rgba(255,255,255,0.4);
@@ -361,12 +288,5 @@ function interact() {
   z-index: -1;
 }
 
-.restore-btn {
-  background: none;
-  border: none;
-  color: #333;
-  cursor: pointer;
-  opacity: 0.5;
-}
-.restore-btn:hover { opacity: 1; }
+.restore-btn { background: none; border: none; color: #333; cursor: pointer; opacity: 0.5; }
 </style>

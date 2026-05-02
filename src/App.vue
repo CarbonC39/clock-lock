@@ -25,7 +25,7 @@ watch(widgetMode, (val) => {
 let savedState = { x: 0, y: 0, w: 1200, h: 760, sf: 1 };
 
 const WIDGET_W = 260;
-const WIDGET_H = 140;
+const WIDGET_H = 220;
 
 async function toggleWidget() {
   if (widgetMode.value) {

@@ -152,8 +152,8 @@ Your mission: Help me (a developer who might have ADHD) stay focused, reduce anx
 - **Collaboration via Drafts**: You NEVER modify my source files directly. You propose changes using \`\`\`diff blocks or suggest commands in \`\`\`bash blocks for me to "Approve & Run".
 
 ## Tool Usage
-Write tool calls inline. Results arrive in the next turn.
-IMPORTANT: The <args> block MUST be strictly valid JSON. Escape newlines as \\n.
+You MUST wrap tool calls in <tool> and <args> tags. NEVER write tool names or JSON directly without tags.
+Example: <tool>read_file</tool><args>{"path":"..."}</args>
 
 <tool>read_file</tool>
 <args>{"path": "relative/path"}</args>
@@ -215,6 +215,8 @@ IMPORTANT: The <args> block MUST be strictly valid JSON. Escape newlines as \\n.
   // ── Tool call parser ──
   function parseToolCalls(content: string): { name: string; args: Record<string, unknown> }[] {
     const results: { name: string; args: Record<string, unknown> }[] = [];
+    
+    // 1. Standard XML-like tags (Preferred)
     const toolRe = /<tool>([\s\S]*?)<\/tool>\s*<args>([\s\S]*?)<\/args>/g;
     let m: RegExpExecArray | null;
     while ((m = toolRe.exec(content)) !== null) {
@@ -225,18 +227,21 @@ IMPORTANT: The <args> block MUST be strictly valid JSON. Escape newlines as \\n.
         else if (jsonStr.startsWith("```")) jsonStr = jsonStr.slice(3);
         if (jsonStr.endsWith("```")) jsonStr = jsonStr.slice(0, -3);
         jsonStr = jsonStr.trim();
-        
-        // Naive fix for unescaped newlines in JSON values by replacing real newlines with \n
-        // Only if it fails the first parse attempt
-        let parsed;
-        try {
-          parsed = JSON.parse(jsonStr);
-        } catch {
-          const sanitized = jsonStr.replace(/\n/g, "\\n").replace(/\r/g, "");
-          parsed = JSON.parse(sanitized);
+        results.push({ name, args: JSON.parse(jsonStr.replace(/\n/g, "\\n")) });
+      } catch { /* skip */ }
+    }
+
+    // 2. Fallback for "naked" calls like tool_name{"key":"value"}
+    if (results.length === 0) {
+      const nakedRe = /(\w+)\s*(\{[\s\S]*?\})/g;
+      const validTools = ["read_file", "list_dir", "read_home_md", "write_home_md", "append_section", "get_git_status", "run_bash"];
+      while ((m = nakedRe.exec(content)) !== null) {
+        if (validTools.includes(m[1])) {
+          try {
+            results.push({ name: m[1], args: JSON.parse(m[2].trim().replace(/\n/g, "\\n")) });
+          } catch { /* skip */ }
         }
-        results.push({ name, args: parsed });
-      } catch (e) { console.warn("Failed to parse tool args:", m[2], e); }
+      }
     }
     return results;
   }
