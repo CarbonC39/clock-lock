@@ -5,116 +5,47 @@ import { Pencil, Plus, X } from "lucide-vue-next";
 
 marked.setOptions({ gfm: true, breaks: true });
 
-const props = defineProps<{
-  content: string;
-}>();
-
+const props = defineProps<{ content: string }>();
 const emit = defineEmits<{ "update:content": [string] }>();
 
+// Stable incrementing id — avoids remount when a section is renamed.
+let _uid = 0;
+
 interface Section {
+  id: number;
   heading: string;
   body: string;
   editing: boolean;
   editBackup: string;
 }
-
-interface Task {
-  text: string;
-  checked: boolean;
-}
+interface Task { text: string; checked: boolean }
 
 const sections = reactive<Section[]>([]);
 let currentContent = "";
 
-// ── Parse / Serialize ──
+// ── Parse / Serialize ────────────────────────────────────────
+
 function parseSections(md: string): Section[] {
   const result: Section[] = [];
   const lines = md.split("\n");
-  let current: Section | null = null;
-
+  let cur: Section | null = null;
   for (const line of lines) {
-    const h1 = line.match(/^# (.+)/);
-    if (h1) {
-      if (current) {
-        current.body = current.body.trimEnd();
-        result.push(current);
-      }
-      current = { heading: h1[1], body: "", editing: false, editBackup: "" };
-    } else if (current) {
-      current.body += line + "\n";
+    const m = line.match(/^# (.+)/);
+    if (m) {
+      if (cur) { cur.body = cur.body.trim(); result.push(cur); }
+      cur = { id: _uid++, heading: m[1], body: "", editing: false, editBackup: "" };
+    } else if (cur) {
+      cur.body += line + "\n";
     }
   }
-  if (current) {
-    current.body = current.body.trimEnd();
-    result.push(current);
-  }
+  if (cur) { cur.body = cur.body.trim(); result.push(cur); }
   return result;
 }
 
 function serializeSections(secs: Section[]): string {
-  return secs.map((s) => `# ${s.heading}\n\n${s.body.trimEnd()}`).join("\n\n") + "\n";
+  return secs.map(s => `# ${s.heading}\n\n${s.body.trimEnd()}`).join("\n\n") + "\n";
 }
 
-// ── Task helpers ──
-function getTasks(body: string): Task[] {
-  return body
-    .split("\n")
-    .filter((line) => /^- \[[ x]\]/.test(line))
-    .map((line) => ({
-      text: line.replace(/^- \[[ x]\] /, ""),
-      checked: line.startsWith("- [x]"),
-    }));
-}
-
-function getNonTaskMd(body: string): string {
-  const lines = body.split("\n");
-  const filtered = lines.filter((line) => !/^- \[[ x]\]/.test(line));
-  return filtered.join("\n");
-}
-
-function renderMd(src: string): string {
-  if (!src.trim()) return "";
-  return marked.parse(src) as string;
-}
-
-// ── Mutations ──
-function toggleTask(body: string, index: number): string {
-  const lines = body.split("\n");
-  let count = 0;
-  for (let i = 0; i < lines.length; i++) {
-    if (/^- \[[ x]\]/.test(lines[i])) {
-      if (count === index) {
-        lines[i] = lines[i].startsWith("- [x]")
-          ? lines[i].replace("- [x]", "- [ ]")
-          : lines[i].replace("- [ ]", "- [x]");
-        break;
-      }
-      count++;
-    }
-  }
-  return lines.join("\n");
-}
-
-function addTask(body: string): string {
-  return body.trimEnd() + "\n- [ ] ";
-}
-
-function removeTask(body: string, index: number): string {
-  const lines = body.split("\n");
-  const result: string[] = [];
-  let count = 0;
-  for (const line of lines) {
-    if (/^- \[[ x]\]/.test(line)) {
-      if (count !== index) result.push(line);
-      count++;
-    } else {
-      result.push(line);
-    }
-  }
-  return result.join("\n");
-}
-
-// ── Sync ──
 watch(
   () => props.content,
   (val) => {
@@ -133,7 +64,70 @@ function emitContent() {
   emit("update:content", md);
 }
 
-// ── Task interactions ──
+// ── Task helpers ──────────────────────────────────────────────
+
+function getTasks(body: string): Task[] {
+  return body.split("\n")
+    .filter(l => /^- \[[ x]\]/.test(l))
+    .map(l => ({ text: l.replace(/^- \[[ x]\] /, ""), checked: l.startsWith("- [x]") }));
+}
+
+function getNonTaskMd(body: string): string {
+  return body.split("\n").filter(l => !/^- \[[ x]\]/.test(l)).join("\n");
+}
+
+function renderMd(src: string): string {
+  return src.trim() ? marked.parse(src) as string : "";
+}
+
+function toggleTask(body: string, idx: number): string {
+  const lines = body.split("\n");
+  let n = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^- \[[ x]\]/.test(lines[i])) {
+      if (n === idx) {
+        lines[i] = lines[i].startsWith("- [x]")
+          ? lines[i].replace(/^- \[x\]/, "- [ ]")
+          : lines[i].replace(/^- \[ \]/, "- [x]");
+        break;
+      }
+      n++;
+    }
+  }
+  return lines.join("\n");
+}
+
+function addTask(body: string): string {
+  return body.trimEnd() + "\n- [ ] ";
+}
+
+function removeTask(body: string, idx: number): string {
+  const lines = body.split("\n");
+  let n = 0;
+  return lines.filter(l => {
+    if (/^- \[[ x]\]/.test(l)) { return n++ !== idx; }
+    return true;
+  }).join("\n");
+}
+
+function updateTaskText(body: string, idx: number, text: string): string {
+  const lines = body.split("\n");
+  let n = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^- \[[ x]\]/.test(lines[i])) {
+      if (n === idx) {
+        const checked = lines[i].startsWith("- [x]");
+        lines[i] = `${checked ? "- [x]" : "- [ ]"} ${text}`;
+        break;
+      }
+      n++;
+    }
+  }
+  return lines.join("\n");
+}
+
+// ── Task interactions ─────────────────────────────────────────
+
 function onToggleTask(si: number, ti: number) {
   sections[si].body = toggleTask(sections[si].body, ti);
   emitContent();
@@ -151,7 +145,8 @@ function onRemoveTask(si: number, ti: number) {
   emitContent();
 }
 
-// ── Inline task editing ──
+// ── Inline task editing ──────────────────────────────────────
+
 const editingTask = ref<{ si: number; ti: number; text: string } | null>(null);
 
 function startEditTask(si: number, ti: number) {
@@ -159,13 +154,12 @@ function startEditTask(si: number, ti: number) {
   if (ti >= tasks.length) return;
   editingTask.value = { si, ti, text: tasks[ti].text };
   nextTick(() => {
-    const inp = document.querySelector<HTMLInputElement>(".task-edit-input");
-    inp?.focus();
-    inp?.select();
+    const el = document.querySelector<HTMLInputElement>(".task-edit-input");
+    el?.focus(); el?.select();
   });
 }
 
-function finishEditTask() {
+function commitEditTask() {
   if (!editingTask.value) return;
   const { si, ti, text } = editingTask.value;
   editingTask.value = null;
@@ -175,89 +169,113 @@ function finishEditTask() {
   }
 }
 
-function cancelEditTask() {
-  editingTask.value = null;
-}
+// ── Section body edit ────────────────────────────────────────
 
-function updateTaskText(body: string, index: number, newText: string): string {
-  const lines = body.split("\n");
-  let count = 0;
-  for (let i = 0; i < lines.length; i++) {
-    if (/^- \[[ x]\]/.test(lines[i])) {
-      if (count === index) {
-        const checked = lines[i].startsWith("- [x]");
-        lines[i] = `${checked ? "- [x]" : "- [ ]"} ${newText}`;
-        break;
-      }
-      count++;
-    }
-  }
-  return lines.join("\n");
-}
-
-// ── Edit mode ──
 function startEdit(si: number) {
-  const section = sections[si];
-  section.editBackup = section.body;
-  section.editing = true;
+  sections[si].editBackup = sections[si].body;
+  sections[si].editing = true;
   nextTick(() => {
-    const ta = document.querySelector<HTMLTextAreaElement>(
-      `.section-textarea[data-si="${si}"]`
-    );
-    ta?.focus();
-    ta?.select();
+    document.querySelector<HTMLTextAreaElement>(`.section-textarea[data-si="${si}"]`)?.focus();
   });
 }
 
-function finishEdit(si: number) {
-  const section = sections[si];
-  section.editing = false;
-  if (section.body !== section.editBackup) {
+function commitEdit(si: number) {
+  sections[si].editing = false;
+  if (sections[si].body !== sections[si].editBackup) emitContent();
+}
+
+function cancelEdit(si: number) {
+  sections[si].body = sections[si].editBackup;
+  sections[si].editing = false;
+}
+
+// ── Heading rename ────────────────────────────────────────────
+//
+// Guards against the double-fire that happens when Enter or Esc
+// removes the focused input from the DOM, which triggers blur.
+// Pattern: always null-check renamingIdx first.
+
+const renamingIdx = ref<number | null>(null);
+const renameValue = ref("");
+
+function startRename(si: number) {
+  renamingIdx.value = si;
+  renameValue.value = sections[si].heading;
+  nextTick(() => {
+    const el = document.querySelector<HTMLInputElement>(".heading-rename-input");
+    el?.focus(); el?.select();
+  });
+}
+
+function commitRename() {
+  if (renamingIdx.value === null) return; // guard: Esc already cleared this
+  const si = renamingIdx.value;
+  renamingIdx.value = null;
+  const name = renameValue.value.trim();
+  if (name && name !== sections[si].heading) {
+    sections[si].heading = name;
     emitContent();
   }
 }
 
-function cancelEdit(si: number) {
-  const section = sections[si];
-  section.body = section.editBackup;
-  section.editing = false;
+function cancelRename() {
+  renamingIdx.value = null;
+  // Vue removes the input → blur fires → commitRename → early-returns above. ✓
 }
+
 </script>
 
 <template>
   <div class="editor-wrap">
     <div class="editor-scroll">
+
       <section
         v-for="(section, si) in sections"
-        :key="si"
+        :key="section.id"
         class="md-section"
       >
-        <!-- ── Heading ── -->
+        <!-- ── Section heading ── -->
         <div class="section-head">
-          <h1 class="section-heading" @dblclick="startEdit(si)">
-            {{ section.heading }}
-          </h1>
-          <button
-            v-if="!section.editing"
-            class="edit-btn"
-            title="Edit section"
-            @click="startEdit(si)"
-          >
-            <Pencil :size="11" />
-          </button>
+
+          <!-- Rename mode: inline input replaces h1 -->
+          <input
+            v-if="renamingIdx === si"
+            v-model="renameValue"
+            class="heading-rename-input"
+            @blur="commitRename"
+            @keydown.enter.prevent="commitRename"
+            @keydown.escape="cancelRename"
+          />
+
+          <!-- Normal heading -->
+          <h1
+            v-else
+            class="section-heading"
+            title="Double-click to rename"
+            @dblclick="startRename(si)"
+          >{{ section.heading }}</h1>
+
+          <!-- Buttons hidden until hover; hidden entirely while body-editing or renaming -->
+          <template v-if="!section.editing && renamingIdx !== si">
+            <button class="rename-btn" @click="startRename(si)">rename</button>
+            <button class="edit-btn" title="Edit content" @click="startEdit(si)">
+              <Pencil :size="11" />
+            </button>
+          </template>
         </div>
 
         <!-- ── Read mode ── -->
         <template v-if="!section.editing">
-          <!-- Markdown body -->
+
+          <!-- Markdown prose (non-task lines) -->
           <div
             v-if="getNonTaskMd(section.body).trim()"
             class="md-rendered"
             v-html="renderMd(getNonTaskMd(section.body))"
           />
 
-          <!-- Task list -->
-          <div v-if="getTasks(section.body).length" class="task-block">
+          <!-- Tasks -->
+          <div class="task-block">
             <div
               v-for="(task, ti) in getTasks(section.body)"
               :key="ti"
@@ -271,14 +289,14 @@ function cancelEdit(si: number) {
               >
                 <span v-if="task.checked" class="check-mark" />
               </button>
-              <!-- Inline edit -->
+
               <input
                 v-if="editingTask && editingTask.si === si && editingTask.ti === ti"
                 v-model="editingTask.text"
                 class="task-edit-input"
-                @blur="finishEditTask"
-                @keydown.enter="finishEditTask"
-                @keydown.escape="cancelEditTask"
+                @blur="commitEditTask"
+                @keydown.enter="commitEditTask"
+                @keydown.escape="editingTask = null"
                 @click.stop
               />
               <span
@@ -286,34 +304,36 @@ function cancelEdit(si: number) {
                 class="task-text"
                 @dblclick="startEditTask(si, ti)"
               >{{ task.text || "…" }}</span>
-              <button
-                class="task-remove"
-                title="Remove"
-                @click="onRemoveTask(si, ti)"
-              >
-                <X :size="11" />
+
+              <button class="task-remove" title="Remove" @click="onRemoveTask(si, ti)">
+                <X :size="10" />
               </button>
             </div>
-            <button class="task-add" title="Add task" @click="onAddTask(si)">
-              <Plus :size="14" />
+
+            <!-- Add task -->
+            <button class="task-add" @click="onAddTask(si)">
+              <Plus :size="13" />
+              <span>Add task</span>
             </button>
           </div>
         </template>
 
-        <!-- ── Edit mode ── -->
+        <!-- ── Body edit mode ── -->
         <div v-else class="section-edit">
           <textarea
             v-model="section.body"
             :data-si="si"
             class="section-textarea"
             rows="6"
-            @blur="finishEdit(si)"
-            @keydown.ctrl.enter="finishEdit(si)"
+            @blur="commitEdit(si)"
+            @keydown.ctrl.enter="commitEdit(si)"
             @keydown.escape="cancelEdit(si)"
           />
-          <div class="edit-hint">Ctrl+Enter to save · Esc to cancel</div>
+          <p class="edit-hint">Ctrl+Enter to save · Esc to cancel · blur auto-saves</p>
         </div>
       </section>
+
+
     </div>
   </div>
 </template>
@@ -329,27 +349,66 @@ function cancelEdit(si: number) {
 .editor-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 52px 80px;
+  padding: 32px 52px 80px;
 }
 
-/* ── Section header ── */
+/* ── Section ── */
+.md-section {
+  margin-bottom: 40px;
+}
+
+/* ── Section heading row ── */
 .section-head {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 12px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--color-border);
-  padding-bottom: 6px;
 }
 
 .section-heading {
-  font-size: 1.25em;
-  font-weight: 700;
-  color: var(--color-accent-purple);
-  margin: 0;
   flex: 1;
-  cursor: default;
+  font-size: 1.2em;
+  font-weight: 700;
+  color: var(--color-accent-blue);
+  margin: 0;
   letter-spacing: -0.02em;
+  cursor: default;
+  user-select: none;
+}
+
+/* Inline rename input — visually replaces the h1 */
+.heading-rename-input {
+  flex: 1;
+  font-size: 1.2em;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+  color: var(--color-accent-blue);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--color-accent-blue);
+  padding: 0 2px 2px;
+  outline: none;
+  min-width: 0;
+}
+
+/* Buttons appear on hover of the section head */
+.rename-btn {
+  font-size: 10.5px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition), background-color var(--transition), color var(--transition);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .edit-btn {
@@ -366,8 +425,19 @@ function cancelEdit(si: number) {
   cursor: pointer;
   opacity: 0;
   transition: all var(--transition);
+  padding: 0;
 }
-.section-head:hover .edit-btn { opacity: 1; }
+
+.section-head:hover .rename-btn,
+.section-head:hover .edit-btn {
+  opacity: 1;
+}
+
+.rename-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-accent-blue);
+}
+
 .edit-btn:hover {
   background: var(--color-surface);
   border-color: var(--color-border);
@@ -376,19 +446,23 @@ function cancelEdit(si: number) {
 
 /* ── Rendered markdown ── */
 .md-rendered {
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 1.75;
   color: var(--color-text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .md-rendered :deep(p) { margin: 0 0 0.5em; }
 .md-rendered :deep(p:last-child) { margin-bottom: 0; }
+.md-rendered :deep(h2) { font-size: 1em; font-weight: 700; color: var(--color-text-primary); margin: 0.8em 0 0.3em; }
+.md-rendered :deep(h3) { font-size: 0.95em; font-weight: 600; color: var(--color-text-secondary); margin: 0.6em 0 0.2em; }
+.md-rendered :deep(ul), .md-rendered :deep(ol) { padding-left: 1.4em; margin: 0 0 0.5em; }
+.md-rendered :deep(li) { margin-bottom: 0.15em; }
 .md-rendered :deep(code) {
   font-family: var(--font-mono);
-  font-size: 0.86em;
+  font-size: 0.85em;
   background: color-mix(in srgb, var(--color-accent-pink) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-accent-pink) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-pink) 20%, transparent);
   padding: 0.1em 0.35em;
   border-radius: 3px;
   color: var(--color-accent-pink);
@@ -399,39 +473,41 @@ function cancelEdit(si: number) {
   border-radius: var(--radius-sm);
   padding: 10px 14px;
   overflow-x: auto;
-  margin-bottom: 0.5em;
+  margin: 0 0 0.5em;
 }
 .md-rendered :deep(pre code) { background: none; border: none; padding: 0; color: var(--color-text-primary); font-size: 0.84em; }
+.md-rendered :deep(blockquote) {
+  border-left: 2px solid var(--color-accent-purple);
+  margin: 0.3em 0 0.5em;
+  padding: 0.3em 0.8em;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
 .md-rendered :deep(a) { color: var(--color-accent-blue); }
-.md-rendered :deep(strong) { color: var(--color-text-primary); }
-.md-rendered :deep(em) { color: var(--color-accent-teal); }
+.md-rendered :deep(strong) { font-weight: 700; color: var(--color-text-primary); }
+.md-rendered :deep(em) { color: var(--color-accent-teal); font-style: italic; }
+.md-rendered :deep(hr) { border: none; border-top: 1px solid var(--color-border); margin: 0.8em 0; }
 
 /* ── Task block ── */
 .task-block {
-  margin-top: 8px;
   display: flex;
   flex-direction: column;
+  gap: 1px;
 }
 
 .task-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 4px;
+  padding: 3px 4px;
   border-radius: var(--radius-sm);
-  transition: background-color var(--transition);
   font-size: 13px;
+  transition: background-color var(--transition);
 }
-.task-row:hover {
-  background: color-mix(in srgb, var(--color-accent-blue) 4%, transparent);
-}
+.task-row:hover { background: color-mix(in srgb, var(--color-accent-blue) 5%, transparent); }
 .task-row:hover .task-remove { opacity: 1; }
-.task-row.done .task-text {
-  text-decoration: line-through;
-  color: var(--color-text-muted);
-}
+.task-row.done .task-text { text-decoration: line-through; color: var(--color-text-muted); opacity: 0.7; }
 
-/* ── Custom checkbox ── */
 .task-check {
   width: 15px;
   height: 15px;
@@ -448,10 +524,7 @@ function cancelEdit(si: number) {
 }
 .task-row:hover .task-check { border-color: var(--color-text-muted); }
 .task-check:hover { border-color: var(--color-accent-blue); }
-.task-check.on {
-  background: var(--color-accent-blue);
-  border-color: var(--color-accent-blue);
-}
+.task-check.on { background: var(--color-accent-blue); border-color: var(--color-accent-blue); }
 
 .check-mark {
   display: block;
@@ -465,14 +538,14 @@ function cancelEdit(si: number) {
 .task-text {
   flex: 1;
   color: var(--color-text-secondary);
-  min-height: 22px;
   line-height: 1.5;
   word-break: break-word;
+  cursor: default;
 }
 
 .task-edit-input {
   flex: 1;
-  padding: 2px 4px;
+  padding: 2px 6px;
   background: var(--color-surface);
   border: 1px solid var(--color-accent-blue);
   border-radius: var(--radius-sm);
@@ -488,43 +561,41 @@ function cancelEdit(si: number) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   background: none;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 3px;
   color: var(--color-text-muted);
   cursor: pointer;
   opacity: 0;
   padding: 0;
   transition: all var(--transition);
 }
-.task-remove:hover {
-  background: color-mix(in srgb, var(--color-accent-red) 10%, transparent);
-  color: var(--color-accent-red);
-}
+.task-remove:hover { background: color-mix(in srgb, var(--color-accent-red) 10%, transparent); color: var(--color-accent-red); }
 
-/* ── Add task button ── */
 .task-add {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 4px;
-  font-size: 11px;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 3px 4px;
+  font-size: 11.5px;
+  font-family: var(--font-sans);
   background: none;
   border: none;
+  border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: all var(--transition);
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition);
 }
-.task-add:hover {
-  color: var(--color-accent-blue);
-}
+.task-block:hover .task-add { opacity: 0.55; }
+.task-add:hover { opacity: 1 !important; color: var(--color-accent-blue); }
 
-/* ── Edit mode ── */
-.section-edit { margin-top: 2px; }
+/* ── Body edit mode ── */
+.section-edit { margin-top: 4px; }
 
 .section-textarea {
   width: 100%;
@@ -538,15 +609,17 @@ function cancelEdit(si: number) {
   line-height: 1.65;
   outline: none;
   resize: vertical;
-  min-height: 100px;
+  min-height: 80px;
   transition: border-color var(--transition);
+  box-sizing: border-box;
 }
 .section-textarea:focus { border-color: var(--color-accent-blue); }
 
 .edit-hint {
   font-size: 11px;
   color: var(--color-text-muted);
-  margin-top: 4px;
-  padding-left: 2px;
+  margin: 4px 0 0 2px;
+  opacity: 0.7;
 }
+
 </style>

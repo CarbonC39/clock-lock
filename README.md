@@ -7,8 +7,9 @@ Built with **Tauri v2 + Vue 3 + Rust**.
 ## Features
 
 ### Workspace & Knowledge Base
-- **Project home (`home.md`)** — a living document with Overview, Notes, and Progress sections. Edit in-place with double-click on headings, interactive task checklists with checkable toggles.
+- **Project home (`home.md`)** — a living document with Overview, Todos, and Notes sections. Sections are rendered as rich Markdown with interactive task checklists; double-click any heading to rename it; pencil button opens raw-text edit mode.
 - **File tree** — browse the workspace directory with git status badges (M/A/D). Filters `.gitignore`-ignored files.
+- **File viewer** — syntax-highlighted (Shiki / Catppuccin theme) for 25+ languages; images rendered inline.
 - **Binary annotations** — attach free-text notes to images, models, and other binary assets.
 - **File watcher** — live-refreshes the tree on filesystem changes (debounced, ignores gitignored paths).
 
@@ -30,14 +31,14 @@ Built with **Tauri v2 + Vue 3 + Rust**.
 - **Idle detection** — if no activity for a configurable threshold (default 48 h), the agent sends a friendly check-in notification.
 - **Do Not Disturb** — toggle in Settings to suppress all supervision messages.
 - **Natural language snooze** — reply to a check-in with "skip for a week" or "I have exams" and the agent parses and reschedules.
-- **Tamagotchi pet** — 5-state kaomoji face (idle, thinking, happy, sleepy, excited) with CSS animations, driven by agent activity.
+- **Tamagotchi pet** — 5-state kaomoji face (idle/thinking/happy/sleepy/excited) with per-state CSS animations and accent colors, driven by agent activity. Prominent in both the chat panel and the widget.
 - **Customizable personality** — free-text personality prompt injected into the system prompt.
 
 ### Widget Mode
-- Click the widget button in the top bar to shrink the window to a 240×360 compact floating view.
-- **Companion view** — large pet face, personality-driven status text, and the next pending task.
-- **Tasks view** — full interactive checklist with toggles and add-task input.
-- **Mini chat** — functional streaming chat with markdown rendering, resizable.
+- Click the widget button in the top bar to shrink the window to a compact 260×140 always-on-top floating overlay.
+- **Tamagotchi-style display** — the companion pet face is front-and-center with per-state animations (breathing, thinking bob, happy wiggle, excited bounce, sleepy sway) and state-matched accent colors.
+- **First pending task** — the top unchecked todo from home.md shown in a subtle pill.
+- **Quick input** — send a message to the agent without restoring the full window.
 
 ### Design
 - Catppuccin-inspired dark (Mocha) and light (Latte) theme palettes with low-saturation blue/pink/purple accents.
@@ -52,7 +53,7 @@ Built with **Tauri v2 + Vue 3 + Rust**.
 | **Desktop shell** | Tauri v2 |
 | **Frontend** | Vue 3 (Composition API), Pinia, Vue Router, TypeScript, Vite |
 | **Backend** | Rust (`git2`, `notify`, `sqlx` + SQLite FTS5, `reqwest`) |
-| **Markdown** | `marked` (chat rendering), section-based editor (home.md) |
+| **Markdown** | `marked` (chat + editor rendering), `shiki` (file syntax highlighting) |
 | **Icons** | Lucide Vue Next |
 | **Fonts** | Nunito (UI), JetBrains Mono (code) |
 

@@ -16,8 +16,8 @@ const appWindow = getCurrentWindow();
 
 let savedSize = { w: 1200, h: 760 };
 
-const WIDGET_W = 240;
-const WIDGET_H = 360;
+const WIDGET_W = 260;
+const WIDGET_H = 140;
 
 async function toggleWidget() {
   if (widgetMode.value) {
@@ -52,7 +52,10 @@ provide("toggleWidget", toggleWidget);
 
 onMounted(async () => {
   ui.initTheme();
-  settings.load();
+  await settings.load();
+  if (settings.settings.startup_mode === "minimized") {
+    appWindow.minimize().catch(() => {});
+  }
   if (ui.autoRestoreWorkspace) {
     const last = await invoke<string | null>("get_last_workspace").catch(() => null);
     if (last) workspace.loadWorkspace(last).catch(console.warn);

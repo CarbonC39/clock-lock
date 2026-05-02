@@ -224,7 +224,7 @@ function renderMd(src: string): string {
 /* Markdown inside chat — narrower margins than the editor */
 .msg-assistant .markdown-body { line-height: 1.65; }
 
-.msg-assistant .markdown-body h1 { font-size: 1.3em; font-weight: 700; color: var(--color-accent-purple); margin: 0.5em 0 0.4em; border-bottom: 1px solid var(--color-accent-blue); padding-bottom: 0.2em; }
+.msg-assistant .markdown-body h1 { font-size: 1.3em; font-weight: 700; color: var(--color-accent-blue); margin: 0.5em 0 0.4em; border-bottom: 1px solid var(--color-border); padding-bottom: 0.2em; }
 .msg-assistant .markdown-body h2 { font-size: 1.1em; font-weight: 700; color: var(--color-accent-blue); margin: 0.8em 0 0.3em; padding-left: 8px; border-left: 2px solid var(--color-accent-blue); }
 .msg-assistant .markdown-body h3 { font-size: 1em; font-weight: 700; color: var(--color-accent-pink); margin: 0.7em 0 0.25em; }
 
@@ -270,7 +270,7 @@ function renderMd(src: string): string {
   font-style: italic;
 }
 
-.msg-assistant .markdown-body strong { color: var(--color-text-primary); font-weight: 700; }
+.msg-assistant .markdown-body strong { color: var(--color-accent-blue); font-weight: 700; }
 .msg-assistant .markdown-body em { color: var(--color-accent-teal); font-style: italic; }
 
 .msg-assistant .markdown-body a { color: var(--color-accent-blue); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--color-accent-blue) 35%, transparent); }
