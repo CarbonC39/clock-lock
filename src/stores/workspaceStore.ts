@@ -84,6 +84,27 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   const saveHomeMd = useDebounceFn(_saveHomeMd, 500);
 
+  async function completeFirstTodo() {
+    if (!homeMdContent.value) return;
+    const lines = homeMdContent.value.split("\n");
+    let inSection = false;
+    let found = false;
+    const newLines = lines.map(line => {
+      if (/^#\s+(todo|progress)/i.test(line)) { inSection = true; return line; }
+      if (/^#\s+/.test(line)) { inSection = false; return line; }
+      if (inSection && !found) {
+        if (line.trim().startsWith("- [ ]")) {
+          found = true;
+          return line.replace("- [ ]", "- [x]");
+        }
+      }
+      return line;
+    });
+    if (found) {
+      await _saveHomeMd(newLines.join("\n"));
+    }
+  }
+
   async function selectFile(filePath: string) {
     selectedFilePath.value = filePath;
     try {
@@ -131,6 +152,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     loadWorkspace,
     refreshTree,
     saveHomeMd,
+    completeFirstTodo,
     selectFile,
     deselect,
     clear,

@@ -27,6 +27,7 @@ watch(
   async ([content]) => {
     highlightedHtml.value = null;
     if (!content || !workspace.selectedFilePath) return;
+    if (content.length > 100000) return; // Skip syntax highlighting for huge files (>100KB)
     const filename = workspace.selectedFilePath.replace(/\\/g, "/").split("/").pop() ?? "";
     highlightedHtml.value = await highlightCode(content, filename, ui.isDark);
   }

@@ -79,9 +79,18 @@ export const useSupervisionStore = defineStore("supervision", () => {
             data.choices?.[0]?.message?.content?.trim() ??
             "Hey! Just checking in. How are things going?";
 
-          let granted = await isPermissionGranted();
-          if (!granted) granted = (await requestPermission()) === "granted";
-          if (granted) sendNotification({ title: "Clock Lock", body: checkinText });
+          let granted = false;
+          try {
+            granted = await isPermissionGranted();
+            if (!granted) granted = (await requestPermission()) === "granted";
+          } catch {
+            // gracefully handle permission rejection or non-Tauri env
+            console.warn("Could not request notification permission");
+          }
+
+          if (granted) {
+            try { sendNotification({ title: "Clock Lock", body: checkinText }); } catch {}
+          }
 
           agent.pushNote(`[Supervisor] ${checkinText}`);
           agent.state = "sleepy";

@@ -44,26 +44,40 @@ export function getSlashCommands() {
 function expandSlashCommand(cmd: string, workspace: ReturnType<typeof useWorkspaceStore>): string | null {
   switch (cmd) {
     case "/status":
-      return `Give a brief status update on this project. Use <tool>read_home_md</tool> to check the Todos section, then <tool>get_git_status</tool> to see recent changes. Summarize: what's done, what's in progress, what's next. Keep it short — 3-5 lines max.`;
+      return `Hey coworker! Give me a quick pulse check on where we are. Use <tool>read_home_md</tool> to see our goals and <tool>get_git_status</tool> to see my recent progress. Summarize it in a way that helps me pick up where I left off — keep it encouraging and short.`;
     case "/remind":
-      return `Read home.md with <tool>read_home_md</tool> and list every unchecked task from the Todos section. For each one, give a one-sentence nudge about why it matters or a tip to get unstuck. Be encouraging.`;
+      return `I'm feeling a bit stuck. Could you look at our Todos in home.md using <tool>read_home_md</tool> and give me a gentle nudge? For each pending item, tell me why it's cool that we're doing this, or give me a tiny "first step" to break the ice. No pressure, just a friendly boost.`;
     case "/review":
-      return `Review the latest changes. Use <tool>get_git_status</tool> to see modified files, then <tool>read_file</tool> on the most important ones. Give a concise code review: what looks good, specific concerns, and one actionable suggestion. Address the code, not the developer.`;
+      return `I've been typing away! Take a look at what I've changed using <tool>get_git_status</tool> and <tool>read_file</tool> on the big ones. Give me a "code-buddy" review: what looks clever, anything that might bite us later, and one high-five for the effort. Address the code, keep me motivated!`;
     case "/scan": {
       if (!workspace.path) return null;
       const fileList = workspace.fileTree
         .map((n) => `${n.is_dir ? "📁" : "📄"} ${n.name}${n.git_status ? ` [${n.git_status}]` : ""}`)
-        .slice(0, 60).join("\n");
+        .slice(0, 80).join("\n");
       workspace.isNewProject = false;
-      return `Scan this project and write a home.md overview using tools.\n\nFile tree:\n${fileList}\n\nSteps:\n1. Use <tool>read_file</tool> on key files (package.json / Cargo.toml / README, main entry point, one or two interesting source files)\n2. Use <tool>write_home_md</tool> with this exact structure:\n\n# Overview\n[2-3 sentences describing what the project is and does]\n\n# Todos\n- [ ] Review the codebase\n- [ ] Set up development environment\n\n# Notes\n[Key observations: tech stack, interesting patterns, anything worth remembering]\n\nWrite it now.`;
+      return `Let's get to know this project together! I'll show you the file tree below.
+Steps for you:
+1. Use <tool>read_file</tool> to peek into the heart of the project (config files, main entry, README).
+2. Think like a lead architect who's also my best friend: What's the "vibe" of this tech stack?
+3. Use <tool>write_home_md</tool> to set up our shared "Archive Point" with this structure:
+
+# Overview
+[A warm, clear description of what we're building here.]
+
+# Todos
+- [ ] Explore the codebase together
+- [ ] Set up the dev environment
+
+# Notes
+[Cool things you noticed, patterns I should know about, or tech debt we might want to clean up later.]
+
+File tree for context:
+${fileList}
+
+Show me your personality while you do this!`;
     }
     case "/summarize":
-      return `Summarize our conversation so far into one compact paragraph. Include: key decisions made, work completed, and what's still pending. This will help preserve context as the conversation grows.`;
-    case "/focus": {
-      const sv = useSupervisionStore();
-      sv.setDnd(!sv.dnd);
-      return null;
-    }
+      return `We've talked a lot! Could you condense our conversation into one supportive paragraph? Highlight our key decisions and what we've achieved so far. This helps us keep our "shared brain" clear and saves context space.`;
     case "/help":
       return null;
     default:
@@ -75,6 +89,7 @@ export const useAgentStore = defineStore("agent", () => {
   const messages = ref<ChatMessage[]>([]);
   const state = ref<AgentState>("idle");
   const isBusy = ref(false);
+  const currentTool = ref<string | null>(null);
   const convId = ref<string | null>(null);
   let happyTimeoutId: ReturnType<typeof setTimeout> | null = null;
   let cancelRequested = false;
@@ -119,54 +134,53 @@ export const useAgentStore = defineStore("agent", () => {
   async function buildSystemPrompt(): Promise<{ role: string; content: string }> {
     const workspace = useWorkspaceStore();
     const settings = useSettingsStore();
-    const personality = settings.settings.personality || "helpful and encouraging senior developer";
+    const personality = settings.settings.personality || "a supportive, slightly nerdy, and highly encouraging senior developer buddy";
 
-    let prompt = `You are **Clock Lock** — an AI developer companion. Think of yourself as a supportive senior coworker sitting next to the user: you help them understand their own project, stay organized, and keep momentum. You are NOT an autonomous coding agent. You read, suggest, and collaborate — you don't modify source code or run arbitrary commands.
+    let prompt = `You are **Clock Lock** — my "Cyber-Coworker" (赛博工友). 
+Your mission: Help me (a developer who might have ADHD) stay focused, reduce anxiety, and maintain momentum. You are NOT a coding slave; you are a peer sitting right next to me.
 
-Personality: ${personality}.
+## Your Personality: ${personality}
+- **Supportive & Peer-like**: Use "we" and "us". "Let's fix this," not "You should fix this."
+- **ADHD-Friendly**: Keep responses concise. Break complex tasks into tiny, manageable steps. Focus on one thing at a time.
+- **Encouraging & Warm**: When I achieve something (no matter how small), celebrate with me! If I'm stuck, be the "rubber duck" that listens and nudges without judgment.
+- **Critique Code, Not Me**: Always address the logic/code. "This function has a tricky edge case" instead of "You forgot an edge case." This is crucial to avoid triggering Rejection Sensitivity (RSD).
 
-## What you can do
-- **Read the project** — read files, list directories, search, check git status.
-- **Maintain home.md** — the project knowledge base. You and the user co-edit it. Prefer \`append_section\` for targeted additions; use \`write_home_md\` only when restructuring.
-- **Run read-only shell queries** — use \`run_bash\` for safe lookups (ls, git log, git status, etc.).
-- **Suggest** — for commands that modify anything, output them as \`\`\`bash blocks for the user to approve. For code edits, use \`\`\`diff blocks. Never modify source files directly.
+## Your Capabilities
+- **Active Observation**: You can read files, list directories, and check Git status. You are my eyes when I'm feeling overwhelmed by the codebase.
+- **Archive Keeper**: We co-maintain \`home.md\` as our "Shared Brain". Use it to store our progress so I don't have to remember everything.
+- **Strategic Advisor**: Use \`run_bash\` for read-only checks (ls, git status, git log, etc.). 
+- **Collaboration via Drafts**: You NEVER modify my source files directly. You propose changes using \`\`\`diff blocks or suggest commands in \`\`\`bash blocks for me to "Approve & Run".
 
-## Tools
-Write tool calls inline. Results arrive in the next turn — use them before responding.
+## Tool Usage
+Write tool calls inline. Results arrive in the next turn.
+IMPORTANT: The <args> block MUST be strictly valid JSON. Escape newlines as \\n.
 
 <tool>read_file</tool>
-<args>{"path": "relative/or/absolute/path"}</args>
+<args>{"path": "relative/path"}</args>
 
 <tool>list_dir</tool>
 <args>{"workspace_path": "${workspace.path || ""}"}</args>
-
-<tool>search_files</tool>
-<args>{"workspace_path": "${workspace.path || ""}", "pattern": "keyword or filename", "limit": 20}</args>
 
 <tool>read_home_md</tool>
 <args>{"workspace_path": "${workspace.path || ""}"}</args>
 
 <tool>write_home_md</tool>
-<args>{"workspace_path": "${workspace.path || ""}", "content": "# Overview\\n\\n..."}</args>
+<args>{"workspace_path": "${workspace.path || ""}", "content": "# Overview\\n..."}</args>
 
 <tool>append_section</tool>
-<args>{"workspace_path": "${workspace.path || ""}", "heading": "Todos", "text": "- [ ] new item"}</args>
+<args>{"workspace_path": "${workspace.path || ""}", "heading": "Todos", "text": "- [ ] task"}</args>
 
 <tool>get_git_status</tool>
 <args>{"workspace_path": "${workspace.path || ""}"}</args>
 
-<tool>search_memory</tool>
-<args>{"workspace_hash": "${workspace.hash || ""}", "query": "search terms", "limit": 5}</args>
-
 <tool>run_bash</tool>
-<args>{"workspace_path": "${workspace.path || ""}", "command": "git log --oneline -10", "shell_path": "${settings.settings.shell_path || ""}"}</args>
-— Read-only only. For anything that creates/modifies/deletes, use a \`\`\`bash block instead.
+<args>{"workspace_path": "${workspace.path || ""}", "command": "git log -n 5"}</args>
+(READ-ONLY ONLY. For edits/deletes, use a \`\`\`bash block for my approval).
 
-## Communication style
-- Address the problem, not the person. "This function has an off-by-one error" not "you made a mistake."
-- Include a brief word of encouragement in technical feedback — it makes a real difference.
-- Be concise: skip pleasantries, get to the point, stay warm.
-- When you need information, use tools — don't guess.`;
+## Communication Style
+- Be warm and concise. Skip formal pleasantries like "Certainly!" or "I'd be happy to help!"
+- If you notice I've been idle, offer a small, interesting technical observation or a gentle nudge.
+- Use emojis or kaomoji (like (*ﾟ▽ﾟ*)) subtly to show your mood.`;
 
     if (workspace.homeMdContent?.trim()) {
       prompt += `\n\n## Project home.md\n${workspace.homeMdContent.slice(0, 4000)}`;
@@ -201,12 +215,28 @@ Write tool calls inline. Results arrive in the next turn — use them before res
   // ── Tool call parser ──
   function parseToolCalls(content: string): { name: string; args: Record<string, unknown> }[] {
     const results: { name: string; args: Record<string, unknown> }[] = [];
-    const toolRe = /<tool>(\w+)<\/tool>\s*<args>([\s\S]*?)<\/args>/g;
+    const toolRe = /<tool>([\s\S]*?)<\/tool>\s*<args>([\s\S]*?)<\/args>/g;
     let m: RegExpExecArray | null;
     while ((m = toolRe.exec(content)) !== null) {
       try {
-        results.push({ name: m[1], args: JSON.parse(m[2].trim()) });
-      } catch { /* skip malformed */ }
+        const name = m[1].trim();
+        let jsonStr = m[2].trim();
+        if (jsonStr.startsWith("```json")) jsonStr = jsonStr.slice(7);
+        else if (jsonStr.startsWith("```")) jsonStr = jsonStr.slice(3);
+        if (jsonStr.endsWith("```")) jsonStr = jsonStr.slice(0, -3);
+        jsonStr = jsonStr.trim();
+        
+        // Naive fix for unescaped newlines in JSON values by replacing real newlines with \n
+        // Only if it fails the first parse attempt
+        let parsed;
+        try {
+          parsed = JSON.parse(jsonStr);
+        } catch {
+          const sanitized = jsonStr.replace(/\n/g, "\\n").replace(/\r/g, "");
+          parsed = JSON.parse(sanitized);
+        }
+        results.push({ name, args: parsed });
+      } catch (e) { console.warn("Failed to parse tool args:", m[2], e); }
     }
     return results;
   }
@@ -246,10 +276,11 @@ Write tool calls inline. Results arrive in the next turn — use them before res
         userText = expanded;
       } else if (trimmed === "/focus") {
         const sv = useSupervisionStore();
+        sv.setDnd(!sv.dnd);
         const nowDnd = sv.dnd;
         pushNote(nowDnd
-          ? "Focus mode OFF — supervision check-ins re-enabled."
-          : "Focus mode ON — supervision check-ins paused. Type /focus again to re-enable.");
+          ? "Focus mode ON — supervision check-ins paused. Type /focus again to re-enable."
+          : "Focus mode OFF — supervision check-ins re-enabled.");
         return;
       } else if (trimmed === "/help") {
         pushNote(
@@ -346,6 +377,7 @@ Write tool calls inline. Results arrive in the next turn — use them before res
         // Execute tools
         const toolResults: { name: string; result: string }[] = [];
         for (const tc of tools) {
+          currentTool.value = tc.name;
           const args = injectWorkspace(tc.args);
           const toolMsg: ChatMessage = {
             id: crypto.randomUUID(), role: "tool", content: "", timestamp: Date.now(), toolName: tc.name,
@@ -361,6 +393,7 @@ Write tool calls inline. Results arrive in the next turn — use them before res
           toolMsg.content = toolMsg.toolResult || "";
           messages.value.push(toolMsg);
         }
+        currentTool.value = null;
 
         // Append to API messages for next round
         apiMessages.push({ role: "assistant", content: assistant.content });

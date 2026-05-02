@@ -27,11 +27,7 @@ function scrollToBottom() {
   });
 }
 
-watch(() => agent.messages.length, scrollToBottom);
-watch(
-  () => agent.messages[agent.messages.length - 1]?.content,
-  scrollToBottom
-);
+watch(() => agent.messages, scrollToBottom, { deep: true });
 
 async function send() {
   const text = inputText.value.trim();
