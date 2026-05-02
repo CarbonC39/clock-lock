@@ -86,5 +86,17 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
 
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS session_state (
+            project_hash TEXT PRIMARY KEY,
+            last_active_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            current_focus_file TEXT,
+            last_summary TEXT
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
     Ok(())
 }

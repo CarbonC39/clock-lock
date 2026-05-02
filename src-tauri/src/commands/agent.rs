@@ -6,7 +6,8 @@ use tauri::Emitter as _;
 #[derive(Serialize, Clone)]
 struct ChatChunkEvent {
     id: String,
-    content: String,
+    content: Option<String>,
+    tool_calls: Option<Value>,
 }
 
 #[derive(Serialize, Clone)]
@@ -20,10 +21,17 @@ struct ChatErrorEvent {
     error: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ApiMessage {
     pub role: String,
-    pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 #[tauri::command]
@@ -31,6 +39,7 @@ pub async fn chat_stream(
     app: tauri::AppHandle,
     msg_id: String,
     messages: Vec<ApiMessage>,
+    tools: Option<Value>,
     base_url: String,
     api_key: String,
     model: String,
@@ -46,28 +55,33 @@ pub async fn chat_stream(
         base_url.trim_end_matches('/')
     );
 
-    let body = serde_json::json!({
+    let mut body_obj = serde_json::json!({
         "model": model,
-        "messages": messages.iter().map(|m| serde_json::json!({
-            "role": m.role,
-            "content": m.content,
-        })).collect::<Vec<_>>(),
+        "messages": messages,
         "stream": true,
         "temperature": 0.7,
         "max_tokens": max_tokens,
     });
 
+    if let Some(t) = tools {
+        if let Some(arr) = t.as_array() {
+            if !arr.is_empty() {
+                body_obj["tools"] = t;
+            }
+        }
+    }
+
     let mut req = client
         .post(&endpoint)
         .header("Content-Type", "application/json")
-        .header("Accept-Encoding", "identity"); // prevent compressed SSE that reqwest can't decode
+        .header("Accept-Encoding", "identity"); 
 
     if !api_key.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", api_key));
     }
 
     let response = req
-        .json(&body)
+        .json(&body_obj)
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -87,7 +101,6 @@ pub async fn chat_stream(
         let bytes = item.map_err(|e| e.to_string())?;
         buf.push_str(&String::from_utf8_lossy(&bytes));
 
-        // Process complete SSE events (delimited by \n\n)
         while let Some(pos) = buf.find("\n\n") {
             let event = buf[..pos].to_string();
             buf = buf[pos + 2..].to_string();
@@ -99,17 +112,25 @@ pub async fn chat_stream(
                 }
 
                 let Ok(json) = serde_json::from_str::<Value>(data) else { continue };
-                if let Some(content) = json["choices"][0]["delta"]["content"].as_str() {
-                    if !content.is_empty() {
-                        app.emit(
-                            "chat-chunk",
-                            ChatChunkEvent {
-                                id: msg_id.clone(),
-                                content: content.to_string(),
-                            },
-                        )
-                        .ok();
-                    }
+                let delta = &json["choices"][0]["delta"];
+                
+                let content = delta["content"].as_str().map(|s| s.to_string());
+                let tool_calls = if delta["tool_calls"].is_array() {
+                    Some(delta["tool_calls"].clone())
+                } else {
+                    None
+                };
+
+                if content.is_some() || tool_calls.is_some() {
+                    app.emit(
+                        "chat-chunk",
+                        ChatChunkEvent {
+                            id: msg_id.clone(),
+                            content,
+                            tool_calls,
+                        },
+                    )
+                    .ok();
                 }
             }
         }

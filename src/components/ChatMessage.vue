@@ -1,16 +1,30 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { marked } from "marked";
-import { Wrench, ChevronDown, ChevronRight } from "lucide-vue-next";
+import { Wrench, ChevronDown, ChevronRight, Brain, ListTodo } from "lucide-vue-next";
 import type { ChatMessage } from "../stores/agentStore";
+import { useAgentStore } from "../stores/agentStore";
 import BashBlock from "./BashBlock.vue";
 import DiffView from "./DiffView.vue";
 
 marked.setOptions({ gfm: true, breaks: true });
 
 const props = defineProps<{ message: ChatMessage }>();
+const agent = useAgentStore();
 
 const toolExpanded = ref(false);
+const thoughtExpanded = ref(false);
+
+async function acceptSubtasks(content: string) {
+  try {
+    const data = JSON.parse(content);
+    const formatted = data.subtasks.map((t: string) => `- [ ] ${t}`).join("\n");
+    // Call agent store to send the patch command
+    await agent.sendMessage(`Thanks! Let's use these steps for "${data.original_task}":\n${formatted}\n\nPlease update our home.md Todos with these.`);
+  } catch (e) {
+    console.error("Failed to accept subtasks:", e);
+  }
+}
 
 interface Segment {
   type: "markdown" | "bash" | "diff";
@@ -22,7 +36,7 @@ const BLOCK_RE = /```(bash|sh|shell|zsh|powershell|cmd|diff)\n([\s\S]*?)```/g;
 const segments = computed((): Segment[] => {
   if (props.message.role !== "assistant") return [];
   const result: Segment[] = [];
-  const text = props.message.content;
+  const text = props.message.content || "";
   let lastIndex = 0;
   const re = new RegExp(BLOCK_RE.source, BLOCK_RE.flags);
   let match: RegExpExecArray | null;
@@ -48,6 +62,21 @@ const segments = computed((): Segment[] => {
   return result.length ? result : [{ type: "markdown", content: text }];
 });
 
+const thoughts = computed(() => {
+  if (!props.message.tool_calls) return [];
+  return props.message.tool_calls.map(tc => {
+    try {
+      const args = typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments;
+      return {
+        tool: tc.function.name,
+        text: args.thought_process
+      };
+    } catch {
+      return null;
+    }
+  }).filter(t => t && t.text);
+});
+
 function renderMd(src: string): string {
   return marked.parse(src) as string;
 }
@@ -61,12 +90,35 @@ function renderMd(src: string): string {
 
   <!-- Tool call result -->
   <div v-else-if="message.role === 'tool'" class="msg-tool">
-    <button class="tool-toggle" @click="toolExpanded = !toolExpanded">
-      <Wrench :size="11" />
-      <span>{{ message.toolName }}</span>
-      <component :is="toolExpanded ? ChevronDown : ChevronRight" :size="10" />
-    </button>
-    <pre v-if="toolExpanded" class="tool-result">{{ message.toolResult }}</pre>
+    <!-- Specialized: split_task card -->
+    <div v-if="message.name === 'split_task'" class="task-breakdown-card">
+      <div class="card-header">
+        <ListTodo :size="14" />
+        <span>Task Breakdown</span>
+      </div>
+      <div class="card-body">
+        <p class="original-task">{{ JSON.parse(message.content).original_task }}</p>
+        <ul class="subtask-list">
+          <li v-for="(st, i) in JSON.parse(message.content).subtasks" :key="i">
+            <div class="bullet" />
+            <span>{{ st }}</span>
+          </li>
+        </ul>
+        <button class="accept-btn" @click="acceptSubtasks(message.content)">
+          Accept & Add to Todos
+        </button>
+      </div>
+    </div>
+
+    <!-- Generic Tool -->
+    <template v-else>
+      <button class="tool-toggle" @click="toolExpanded = !toolExpanded">
+        <Wrench :size="11" />
+        <span>{{ message.name }}</span>
+        <component :is="toolExpanded ? ChevronDown : ChevronRight" :size="10" />
+      </button>
+      <pre v-if="toolExpanded" class="tool-result">{{ message.content }}</pre>
+    </template>
   </div>
 
   <!-- User message -->
@@ -77,8 +129,23 @@ function renderMd(src: string): string {
   <!-- Assistant message -->
   <div v-else class="msg-assistant">
     <div class="assistant-body">
+      <!-- Thought Monologue -->
+      <div v-if="thoughts.length > 0" class="thought-monologue" :class="{ expanded: thoughtExpanded }">
+        <button class="thought-header" @click="thoughtExpanded = !thoughtExpanded">
+          <Brain :size="11" />
+          <span>Internal Monologue</span>
+          <component :is="thoughtExpanded ? ChevronDown : ChevronRight" :size="10" />
+        </button>
+        <div v-if="thoughtExpanded" class="thought-list">
+          <div v-for="(t, i) in thoughts" :key="i" class="thought-item">
+            <span class="thought-tool">@{{ t!.tool }}:</span>
+            <p>{{ t!.text }}</p>
+          </div>
+        </div>
+      </div>
+
       <!-- Streaming / empty placeholder -->
-      <div v-if="!message.content && message.isStreaming" class="streaming-placeholder">
+      <div v-if="!message.content && message.isStreaming && !message.tool_calls" class="streaming-placeholder">
         <span class="thinking-dot" /><span class="thinking-dot" /><span class="thinking-dot" />
       </div>
 
@@ -88,7 +155,7 @@ function renderMd(src: string): string {
           <BashBlock v-if="seg.type === 'bash'" :command="seg.content" />
           <DiffView v-else-if="seg.type === 'diff'" :diff-text="seg.content" />
           <div
-            v-else
+            v-else-if="seg.content"
             class="md-segment markdown-body"
             v-html="renderMd(seg.content)"
           />
@@ -115,6 +182,79 @@ function renderMd(src: string): string {
 .msg-tool {
   padding: 2px 0;
 }
+
+.task-breakdown-card {
+  margin: 8px 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  max-width: 320px;
+}
+
+.card-header {
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-accent-teal) 10%, transparent);
+  color: var(--color-accent-teal);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card-body {
+  padding: 12px;
+}
+
+.original-task {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 10px;
+}
+
+.subtask-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subtask-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.bullet {
+  width: 5px;
+  height: 5px;
+  background: var(--color-accent-teal);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.accept-btn {
+  width: 100%;
+  padding: 8px;
+  background: var(--color-accent-teal);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+.accept-btn:hover { opacity: 0.9; }
 
 .tool-toggle {
   display: flex;
@@ -177,6 +317,55 @@ function renderMd(src: string): string {
 .assistant-body {
   flex: 1;
   min-width: 0;
+}
+
+/* Thought monologue */
+.thought-monologue {
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+
+.thought-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.thought-header:hover { opacity: 1; }
+
+.thought-list {
+  padding: 4px 8px 8px;
+  background: color-mix(in srgb, var(--color-text-muted) 5%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--color-text-muted) 20%, transparent);
+  border-radius: 0 4px 4px 0;
+}
+
+.thought-item {
+  margin-bottom: 4px;
+}
+.thought-item:last-child { margin-bottom: 0; }
+
+.thought-tool {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-accent-teal);
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.thought-item p {
+  display: inline;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--color-text-muted);
 }
 
 .md-segment {
@@ -276,6 +465,6 @@ function renderMd(src: string): string {
 .msg-assistant .markdown-body a { color: var(--color-accent-blue); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--color-accent-blue) 35%, transparent); }
 
 .msg-assistant .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 0.75em; font-size: 12px; }
-.msg-assistant .markdown-body th { background: color-mix(in srgb, var(--color-accent-blue) 10%, transparent); color: var(--color-accent-blue); font-weight: 700; padding: 5px 10px; border: 1px solid var(--color-border); text-align: left; }
-.msg-assistant .markdown-body td { border: 1px solid var(--color-border); padding: 4px 10px; color: var(--color-text-secondary); }
+.msg-assistant .markdown-body th { background: color-mix(in srgb, var(--color-accent-blue) 10%, transparent); color: var(--color-accent-blue); font-weight: 700; padding: 5px 10px; border: 1px solid var(--border-color); text-align: left; }
+.msg-assistant .markdown-body td { border: 1px solid var(--border-color); padding: 4px 10px; color: var(--color-text-secondary); }
 </style>

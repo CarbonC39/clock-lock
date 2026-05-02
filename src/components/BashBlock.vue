@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Play, ShieldAlert, ShieldCheck, ShieldX, RotateCw } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useAgentStore } from "../stores/agentStore";
 
 const props = defineProps<{ command: string }>();
 
@@ -12,6 +13,7 @@ type RunState = "idle" | "running" | "done" | "error";
 
 const workspace = useWorkspaceStore();
 const settings = useSettingsStore();
+const agent = useAgentStore();
 const safety = ref<Safety>("unsafe");
 const runState = ref<RunState>("idle");
 const stdout = ref("");
@@ -54,6 +56,15 @@ async function run() {
     stdout.value = result.stdout;
     stderr.value = result.stderr;
     runState.value = result.success ? "done" : "error";
+
+    // Build failure awareness
+    if (!result.success && !didAutoRun.value) {
+      agent.state = "sleepy"; // Represents worry/concern
+      agent.pushNote("Oh! It looks like that command failed. Need me to help analyze the error?");
+    } else if (result.success && !didAutoRun.value) {
+      agent.state = "excited";
+      setTimeout(() => { if (agent.state === "excited") agent.state = "idle"; }, 3000);
+    }
   } catch (e) {
     stderr.value = String(e);
     runState.value = "error";
@@ -176,8 +187,7 @@ async function run() {
 
 .rerun-btn {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: center;   justify-content: center;
   width: 22px;
   height: 22px;
   background: none;

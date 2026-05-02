@@ -233,6 +233,62 @@ pub async fn get_events(
         .collect())
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SessionState {
+    pub last_active_at: i64,
+    pub current_focus_file: Option<String>,
+    pub last_summary: Option<String>,
+}
+
+// ── Session State ──
+
+#[tauri::command]
+pub async fn save_session_state(
+    app: AppHandle,
+    workspace_hash: String,
+    state: SessionState,
+) -> Result<(), String> {
+    let pool = get_pool(&app, &workspace_hash).await?;
+    sqlx::query(
+        "INSERT INTO session_state (project_hash, last_active_at, current_focus_file, last_summary)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(project_hash) DO UPDATE SET
+            last_active_at = excluded.last_active_at,
+            current_focus_file = excluded.current_focus_file,
+            last_summary = excluded.last_summary",
+    )
+    .bind(&workspace_hash)
+    .bind(state.last_active_at)
+    .bind(state.current_focus_file)
+    .bind(state.last_summary)
+    .execute(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_session_state(
+    app: AppHandle,
+    workspace_hash: String,
+) -> Result<Option<SessionState>, String> {
+    let pool = get_pool(&app, &workspace_hash).await?;
+    let row = sqlx::query(
+        "SELECT last_active_at, current_focus_file, last_summary FROM session_state
+         WHERE project_hash = ?",
+    )
+    .bind(&workspace_hash)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(row.map(|r| SessionState {
+        last_active_at: r.get("last_active_at"),
+        current_focus_file: r.get("current_focus_file"),
+        last_summary: r.get("last_summary"),
+    }))
+}
+
 /// Direct helper for tool execution (not a Tauri command)
 pub async fn search_messages_direct(
     app: &AppHandle,

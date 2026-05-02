@@ -13,6 +13,12 @@ export interface FileNode {
   git_status?: string;
 }
 
+export interface SessionState {
+  last_active_at: number;
+  current_focus_file: string | null;
+  last_summary: string | null;
+}
+
 export const useWorkspaceStore = defineStore("workspace", () => {
   const path = ref<string | null>(null);
   const name = ref<string | null>(null);
@@ -22,6 +28,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const homeMdContent = ref<string>("");
   const selectedFilePath = ref<string | null>(null);
   const selectedFileContent = ref<string | null>(null);
+  const sessionState = ref<SessionState | null>(null);
   const isLoading = ref(false);
   const isNewProject = ref(false);
 
@@ -37,6 +44,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     homeMdContent.value = "";
     selectedFilePath.value = null;
     selectedFileContent.value = null;
+    sessionState.value = null;
 
     try {
       const [tree, [mdPath, mdContent], wsHash] = await Promise.all([
@@ -51,7 +59,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       name.value = dirPath.replace(/\\/g, "/").split("/").pop() ?? dirPath;
       path.value = dirPath;
 
-      // Detect new project (template just created, but project has files)
+      // Fetch session state
+      try {
+        sessionState.value = await invoke<SessionState | null>("get_session_state", {
+          workspaceHash: wsHash,
+        });
+      } catch {
+        sessionState.value = null;
+      }
+
+      // Detect new project
       isNewProject.value =
         mdContent.includes("Describe your project here.") &&
         tree.length > 0;
@@ -65,9 +82,23 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     invoke("start_watching", { workspacePath: dirPath }).catch(console.warn);
     invoke("set_last_workspace", { workspacePath: dirPath }).catch(console.warn);
 
-    // M5: Load conversation history
     const agent = useAgentStore();
     agent.loadConversation().catch(console.warn);
+  }
+
+  async function saveSessionState(state: Partial<SessionState>) {
+    if (!hash.value) return;
+    const newState = {
+      last_active_at: Math.floor(Date.now() / 1000),
+      current_focus_file: selectedFilePath.value,
+      last_summary: sessionState.value?.last_summary || null,
+      ...state,
+    };
+    sessionState.value = newState;
+    await invoke("save_session_state", {
+      workspaceHash: hash.value,
+      state: newState,
+    }).catch(console.warn);
   }
 
   async function refreshTree() {
@@ -117,6 +148,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
   async function selectFile(filePath: string) {
     selectedFilePath.value = filePath;
+    saveSessionState({ current_focus_file: filePath });
     try {
       selectedFileContent.value = await invoke<string>("read_file", { path: filePath });
     } catch (e: unknown) {
@@ -132,6 +164,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   function deselect() {
     selectedFilePath.value = null;
     selectedFileContent.value = null;
+    saveSessionState({ current_focus_file: null });
   }
 
   function clear() {
@@ -144,6 +177,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     homeMdContent.value = "";
     selectedFilePath.value = null;
     selectedFileContent.value = null;
+    sessionState.value = null;
     invoke("stop_watching").catch(() => {});
   }
 
@@ -156,6 +190,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     homeMdContent,
     selectedFilePath,
     selectedFileContent,
+    sessionState,
     isLoading,
     isNewProject,
     openWorkspace,
@@ -163,6 +198,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     refreshTree,
     refreshHomeMd,
     saveHomeMd,
+    saveSessionState,
     completeFirstTodo,
     selectFile,
     deselect,

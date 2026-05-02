@@ -73,30 +73,6 @@ const hunks = computed((): DiffHunk[] => {
   return result;
 });
 
-function computeNewContent(original: string): string {
-  const sorted = [...hunks.value].sort((a, b) => b.oldStart - a.oldStart);
-  const result = original.split("\n");
-
-  for (const hunk of sorted) {
-    const newLines: string[] = [];
-    let oldLineCount = 0;
-    for (const line of hunk.lines) {
-      if (line.type === "header") continue;
-      if (line.type === "context" || line.type === "remove") {
-        oldLineCount++;
-      }
-      if (line.type === "context" || line.type === "add") {
-        newLines.push(line.content);
-      }
-    }
-    // new-file diffs have oldStart=0, splice at start of array
-    const start = Math.max(0, hunk.oldStart - 1);
-    result.splice(start, oldLineCount, ...newLines);
-  }
-
-  return result.join("\n");
-}
-
 async function apply() {
   if (!filePath.value || !workspace.path) return;
   applyState.value = "applying";
@@ -104,18 +80,11 @@ async function apply() {
 
   try {
     const fullPath = workspace.path.replace(/[/\\]$/, "").replace(/\\/g, "/") + "/" + filePath.value;
-    let original = "";
-    try {
-      original = await invoke<string>("read_file", { path: fullPath });
-    } catch {
-      original = "";
-    }
-    const newContent = computeNewContent(original);
-
-    await invoke("write_file_with_backup", {
-      workspacePath: workspace.path,
-      filePath: fullPath,
-      content: newContent,
+    
+    // Call the new surgical patching command
+    await invoke("apply_diff_patch", {
+      path: fullPath,
+      diffText: props.diffText,
     });
 
     applyState.value = "done";
@@ -124,6 +93,7 @@ async function apply() {
 
     // Refresh selected file content if it's the same file
     if (workspace.selectedFilePath === fullPath) {
+      const newContent = await invoke<string>("read_file", { path: fullPath });
       workspace.selectedFileContent = newContent;
     }
   } catch (e) {

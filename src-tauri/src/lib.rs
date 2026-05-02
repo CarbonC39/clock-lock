@@ -5,13 +5,13 @@ mod watcher;
 
 use commands::agent::chat_stream;
 use commands::fs::{
-    ensure_home_md, get_annotations, get_git_status, get_last_workspace, get_workspace_hash,
-    list_dir, open_in_explorer, read_file, read_image_b64, save_annotation, search_files,
-    set_last_workspace, write_file, write_file_with_backup,
+    apply_diff_patch, ensure_home_md, get_annotations, get_git_status, get_last_workspace,
+    get_workspace_hash, list_dir, open_in_explorer, read_file, read_image_b64, save_annotation,
+    search_files, set_last_workspace, write_file, write_file_with_backup,
 };
 use commands::memory::{
-    clear_conversation, ensure_conversation, get_events, load_messages, log_event,
-    save_message, search_messages, DbPoolCache,
+    clear_conversation, ensure_conversation, get_events, get_session_state, load_messages,
+    log_event, save_message, save_session_state, search_messages, DbPoolCache,
 };
 use commands::settings::{get_settings, save_settings};
 use commands::shell::{classify_command, run_command};
@@ -53,6 +53,7 @@ pub fn run() {
             get_workspace_hash,
             open_in_explorer,
             search_files,
+            apply_diff_patch,
             // watcher
             start_watching,
             stop_watching,
@@ -72,6 +73,8 @@ pub fn run() {
             clear_conversation,
             log_event,
             get_events,
+            get_session_state,
+            save_session_state,
             // supervision
             report_activity,
             configure_supervision,
