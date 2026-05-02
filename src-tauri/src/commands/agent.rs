@@ -59,7 +59,8 @@ pub async fn chat_stream(
 
     let mut req = client
         .post(&endpoint)
-        .header("Content-Type", "application/json");
+        .header("Content-Type", "application/json")
+        .header("Accept-Encoding", "identity"); // prevent compressed SSE that reqwest can't decode
 
     if !api_key.is_empty() {
         req = req.header("Authorization", format!("Bearer {}", api_key));

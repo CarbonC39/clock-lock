@@ -28,16 +28,27 @@ function select() {
 
 function onContextMenu(e: MouseEvent) {
   e.preventDefault();
-  // Close any previously-open context menu in the document
+  e.stopPropagation();
+  // Close any open context menu first
   document.dispatchEvent(new Event("ctx-close"));
   ctxMenu.value = { x: e.clientX, y: e.clientY };
-  const handler = () => closeCtx();
-  document.addEventListener("click", handler, { once: true });
-  document.addEventListener("ctx-close", handler, { once: true });
+
+  // Defer registration so this event cycle doesn't immediately dismiss the menu
+  requestAnimationFrame(() => {
+    const dismiss = () => {
+      ctxMenu.value = null;
+      document.removeEventListener("mousedown", dismiss);
+      document.removeEventListener("ctx-close", dismiss as EventListener);
+    };
+    document.addEventListener("mousedown", dismiss);
+    document.addEventListener("ctx-close", dismiss as EventListener, { once: true });
+  });
 }
 
 function closeCtx() {
-  ctxMenu.value = null;
+  if (ctxMenu.value) {
+    document.dispatchEvent(new Event("ctx-close"));
+  }
 }
 
 function openInExplorer() {
@@ -136,13 +147,9 @@ const gitClass: Record<string, string> = { M: "git-M", A: "git-A", D: "git-D" };
     <Teleport to="body">
       <div
         v-if="ctxMenu"
-        class="ctx-menu-overlay"
-        @click="closeCtx"
-      />
-      <div
-        v-if="ctxMenu"
         class="ctx-menu"
         :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+        @mousedown.stop
       >
         <button class="ctx-item" @click="openFile">
           <ExternalLink :size="11" />
@@ -234,12 +241,6 @@ const gitClass: Record<string, string> = { M: "git-M", A: "git-A", D: "git-D" };
 .git-D { color: var(--git-deleted);  background: color-mix(in srgb, var(--git-deleted)  15%, transparent); }
 
 /* ── Context menu ── */
-.ctx-menu-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 999;
-}
-
 .ctx-menu {
   position: fixed;
   z-index: 1000;

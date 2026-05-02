@@ -29,6 +29,13 @@ fn is_safe_readonly(cmd: &str) -> bool {
     SAFE_PREFIXES.iter().any(|s| trimmed.starts_with(s))
 }
 
+/// Sync classification used by other modules (e.g. tools.rs).
+pub fn classify_sync(cmd: &str) -> &'static str {
+    if is_blacklisted(cmd) { "blocked" }
+    else if is_safe_readonly(cmd) { "safe" }
+    else { "unsafe" }
+}
+
 #[derive(serde::Serialize)]
 pub struct CommandResult {
     pub stdout: String,

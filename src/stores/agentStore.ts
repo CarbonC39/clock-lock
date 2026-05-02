@@ -20,42 +20,50 @@ export interface ChatMessage {
 }
 
 // ── Slash commands ──
-const SLASH_COMMANDS: Record<string, string> = {
-  "/status": "status",
-  "/remind": "remind", 
-  "/review": "review",
-  "/scan": "scan-old",
-  "/summarize": "summarize",
-  "/focus": "focus",
-  "/help": "help",
-};
+interface SlashCommand {
+  id: string;
+  label: string;   // what the chip shows
+  cmd: string;     // what gets sent
+  bar: boolean;    // show in shortcuts bar
+}
+
+const SLASH_COMMANDS: SlashCommand[] = [
+  { id: "status",    label: "/status",    cmd: "/status",    bar: true  },
+  { id: "remind",    label: "/remind",    cmd: "/remind",    bar: true  },
+  { id: "review",    label: "/review",    cmd: "/review",    bar: true  },
+  { id: "scan",      label: "/scan",      cmd: "/scan",      bar: true  },
+  { id: "summarize", label: "/summarize", cmd: "/summarize", bar: true  },
+  { id: "focus",     label: "/focus",     cmd: "/focus",     bar: false }, // typed only
+  { id: "help",      label: "/help",      cmd: "/help",      bar: false }, // typed only
+];
 
 export function getSlashCommands() {
-  return Object.entries(SLASH_COMMANDS).map(([cmd, id]) => ({ cmd, id }));
+  return SLASH_COMMANDS.filter((sc) => sc.bar);
 }
 
 function expandSlashCommand(cmd: string, workspace: ReturnType<typeof useWorkspaceStore>): string | null {
   switch (cmd) {
     case "/status":
-      return `Give a brief status update. Read home.md to check progress, then check git status. Summarize what's been done and what's pending.`;
+      return `Give a brief status update on this project. Use <tool>read_home_md</tool> to check the Todos section, then <tool>get_git_status</tool> to see recent changes. Summarize: what's done, what's in progress, what's next. Keep it short — 3-5 lines max.`;
     case "/remind":
-      return `Read home.md and list all unchecked tasks from the Progress section. For each one, give a one-sentence nudge.`;
+      return `Read home.md with <tool>read_home_md</tool> and list every unchecked task from the Todos section. For each one, give a one-sentence nudge about why it matters or a tip to get unstuck. Be encouraging.`;
     case "/review":
-      return `Review recent git changes. Read any modified files that look important, then give a concise code review with specific suggestions.`;
+      return `Review the latest changes. Use <tool>get_git_status</tool> to see modified files, then <tool>read_file</tool> on the most important ones. Give a concise code review: what looks good, specific concerns, and one actionable suggestion. Address the code, not the developer.`;
     case "/scan": {
       if (!workspace.path) return null;
       const fileList = workspace.fileTree
         .map((n) => `${n.is_dir ? "📁" : "📄"} ${n.name}${n.git_status ? ` [${n.git_status}]` : ""}`)
-        .slice(0, 50).join("\n");
+        .slice(0, 60).join("\n");
       workspace.isNewProject = false;
-      return `Scan this project and write home.md using tools. File tree:\n${fileList}\n\n1. Use <tool>read_file</tool> on a few key files (package.json, main entry, config files)\n2. Use <tool>write_home_md</tool> to save this template:\n\n# Overview\n[2-3 sentences about the project]\n\n# Notes\n[Any observations about tools, structure, interesting files]\n\n# Progress\n- [ ] Review the codebase\n- [ ] Set up the development environment`;
+      return `Scan this project and write a home.md overview using tools.\n\nFile tree:\n${fileList}\n\nSteps:\n1. Use <tool>read_file</tool> on key files (package.json / Cargo.toml / README, main entry point, one or two interesting source files)\n2. Use <tool>write_home_md</tool> with this exact structure:\n\n# Overview\n[2-3 sentences describing what the project is and does]\n\n# Todos\n- [ ] Review the codebase\n- [ ] Set up development environment\n\n# Notes\n[Key observations: tech stack, interesting patterns, anything worth remembering]\n\nWrite it now.`;
     }
     case "/summarize":
-      return `Summarize our conversation so far into a compact paragraph. Include key decisions, what we've done, and what's pending. This summary will replace older messages to save context space.`;
-    case "/focus":
+      return `Summarize our conversation so far into one compact paragraph. Include: key decisions made, work completed, and what's still pending. This will help preserve context as the conversation grows.`;
+    case "/focus": {
       const sv = useSupervisionStore();
       sv.setDnd(!sv.dnd);
       return null;
+    }
     case "/help":
       return null;
     default:
@@ -69,6 +77,7 @@ export const useAgentStore = defineStore("agent", () => {
   const isBusy = ref(false);
   const convId = ref<string | null>(null);
   let happyTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  let cancelRequested = false;
   const MAX_TOOL_ROUNDS = 5;
 
   // ── Conversation lifecycle ──
@@ -112,27 +121,36 @@ export const useAgentStore = defineStore("agent", () => {
     const settings = useSettingsStore();
     const personality = settings.settings.personality || "helpful and encouraging senior developer";
 
-    let prompt = `You are an AI developer companion integrated into Clock Lock.
-Your personality: ${personality}.
+    let prompt = `You are **Clock Lock** — an AI developer companion. Think of yourself as a supportive senior coworker sitting next to the user: you help them understand their own project, stay organized, and keep momentum. You are NOT an autonomous coding agent. You read, suggest, and collaborate — you don't modify source code or run arbitrary commands.
 
-**Tools** — You can use these tools by writing tool blocks in your response:
+Personality: ${personality}.
+
+## What you can do
+- **Read the project** — read files, list directories, search, check git status.
+- **Maintain home.md** — the project knowledge base. You and the user co-edit it. Prefer \`append_section\` for targeted additions; use \`write_home_md\` only when restructuring.
+- **Run read-only shell queries** — use \`run_bash\` for safe lookups (ls, git log, git status, etc.).
+- **Suggest** — for commands that modify anything, output them as \`\`\`bash blocks for the user to approve. For code edits, use \`\`\`diff blocks. Never modify source files directly.
+
+## Tools
+Write tool calls inline. Results arrive in the next turn — use them before responding.
+
 <tool>read_file</tool>
-<args>{"path": "relative/path/to/file"}</args>
+<args>{"path": "relative/or/absolute/path"}</args>
 
 <tool>list_dir</tool>
 <args>{"workspace_path": "${workspace.path || ""}"}</args>
 
 <tool>search_files</tool>
-<args>{"workspace_path": "${workspace.path || ""}", "pattern": "filename or keyword", "limit": 20}</args>
+<args>{"workspace_path": "${workspace.path || ""}", "pattern": "keyword or filename", "limit": 20}</args>
 
 <tool>read_home_md</tool>
 <args>{"workspace_path": "${workspace.path || ""}"}</args>
 
 <tool>write_home_md</tool>
-<args>{"workspace_path": "${workspace.path || ""}", "content": "full markdown"}</args>
+<args>{"workspace_path": "${workspace.path || ""}", "content": "# Overview\\n\\n..."}</args>
 
 <tool>append_section</tool>
-<args>{"workspace_path": "${workspace.path || ""}", "heading": "Notes", "text": "- [ ] new item"}</args>
+<args>{"workspace_path": "${workspace.path || ""}", "heading": "Todos", "text": "- [ ] new item"}</args>
 
 <tool>get_git_status</tool>
 <args>{"workspace_path": "${workspace.path || ""}"}</args>
@@ -141,22 +159,29 @@ Your personality: ${personality}.
 <args>{"workspace_hash": "${workspace.hash || ""}", "query": "search terms", "limit": 5}</args>
 
 <tool>run_bash</tool>
-<args>{"workspace_path": "${workspace.path || ""}", "command": "ls -la", "shell_path": "${settings.settings.shell_path || ""}"}</args>
+<args>{"workspace_path": "${workspace.path || ""}", "command": "git log --oneline -10", "shell_path": "${settings.settings.shell_path || ""}"}</args>
+— Read-only only. For anything that creates/modifies/deletes, use a \`\`\`bash block instead.
 
-When you need to see a file, use <tool>read_file</tool>. The result will be given to you in the next message.
-When the user asks about project status or tasks, use <tool>read_home_md</tool> first.
-When updating home.md, use <tool>write_home_md</tool> (full replacement) or <tool>append_section</tool> (add to a heading).
-Use tools proactively — don't guess when you can look it up.
-
-Guidelines:
-- Be concise and practical.
-- When suggesting shell commands, wrap them in \`\`\`bash code blocks.
-- When proposing file edits, wrap them in \`\`\`diff code blocks with --- a/ and +++ b/ headers.
-- Critique the problem, never the developer.
-- Add encouragement with technical feedback.`;
+## Communication style
+- Address the problem, not the person. "This function has an off-by-one error" not "you made a mistake."
+- Include a brief word of encouragement in technical feedback — it makes a real difference.
+- Be concise: skip pleasantries, get to the point, stay warm.
+- When you need information, use tools — don't guess.`;
 
     if (workspace.homeMdContent?.trim()) {
       prompt += `\n\n## Project home.md\n${workspace.homeMdContent.slice(0, 4000)}`;
+    }
+
+    const sel = workspace.selectedFilePath;
+    if (sel && sel !== workspace.homeMdPath) {
+      const fileName = sel.replace(/\\/g, "/").split("/").pop() ?? sel;
+      if (workspace.selectedFileContent !== null) {
+        const snippet = workspace.selectedFileContent.slice(0, 2000);
+        const truncated = workspace.selectedFileContent.length > 2000;
+        prompt += `\n\n## Currently open file: ${fileName}\n\`\`\`\n${snippet}${truncated ? "\n... (truncated)" : ""}\n\`\`\``;
+      } else {
+        prompt += `\n\n## Currently open file: ${fileName} (binary)`;
+      }
     }
 
     if (workspace.path) {
@@ -214,15 +239,28 @@ Guidelines:
 
     const trimmed = text.trim();
     let userText = trimmed;
+    const displayText = trimmed; // always show what the user typed in the chat bubble
     if (trimmed.startsWith("/")) {
       const expanded = expandSlashCommand(trimmed, useWorkspaceStore());
       if (expanded !== null) {
         userText = expanded;
       } else if (trimmed === "/focus") {
-        pushNote("[Supervisor] DND toggled from chat.");
+        const sv = useSupervisionStore();
+        const nowDnd = sv.dnd;
+        pushNote(nowDnd
+          ? "Focus mode OFF — supervision check-ins re-enabled."
+          : "Focus mode ON — supervision check-ins paused. Type /focus again to re-enable.");
         return;
       } else if (trimmed === "/help") {
-        pushNote("Commands: /status /remind /review /scan /summarize /focus /help");
+        pushNote(
+          "Available commands:\n" +
+          "  /status   — project status summary\n" +
+          "  /remind   — list pending todos with nudges\n" +
+          "  /review   — code review of recent git changes\n" +
+          "  /scan     — scan project and write home.md overview\n" +
+          "  /summarize — compress this conversation\n" +
+          "  /focus    — toggle supervision Do-Not-Disturb"
+        );
         return;
       }
     }
@@ -231,8 +269,8 @@ Guidelines:
     state.value = "thinking";
     if (happyTimeoutId) { clearTimeout(happyTimeoutId); happyTimeoutId = null; }
 
-    // Snooze detection — find the last supervisor check-in (not confirmation)
-    const prevMsg = [...messages.value].reverse().find(
+    // Snooze detection — only if a supervisor check-in appears in the last 3 messages
+    const prevMsg = messages.value.slice(-3).reverse().find(
       (m) => m.role === "system-note" && m.content.startsWith("[Supervisor]") && !m.content.startsWith("[Supervisor ✓]")
     );
     if (prevMsg) {
@@ -240,21 +278,30 @@ Guidelines:
     }
 
     const userMsg: ChatMessage = {
-      id: crypto.randomUUID(), role: "user", content: userText, timestamp: Date.now(),
+      id: crypto.randomUUID(), role: "user", content: displayText, timestamp: Date.now(),
     };
     messages.value.push(userMsg);
     persistMessage(userMsg);
 
     // Build the messages array for the API — we'll grow it across tool rounds
     const systemMsg = await buildSystemPrompt();
+    const limit = settings.settings.max_context_messages;
+    const historyMsgs = messages.value
+      .slice(0, -1) // exclude the current user message just pushed
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .slice(-limit)
+      .map((m) => ({ role: m.role as string, content: m.content }));
     const apiMessages: { role: string; content: string }[] = [
       systemMsg,
+      ...historyMsgs,
       { role: "user", content: userText },
     ];
 
     // Tool call loop
+    cancelRequested = false;
     let success = true;
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      if (cancelRequested) { success = false; break; }
       const assistantId = crypto.randomUUID();
       const assistantMsg: ChatMessage = {
         id: assistantId, role: "assistant", content: "", timestamp: Date.now(), isStreaming: true,
@@ -342,6 +389,10 @@ Guidelines:
     isBusy.value = false;
   }
 
+  function stopGeneration() {
+    cancelRequested = true;
+  }
+
   function pushNote(text: string) {
     messages.value.push({ id: crypto.randomUUID(), role: "system-note", content: text, timestamp: Date.now() });
   }
@@ -373,5 +424,5 @@ Guidelines:
     isBusy.value = false;
   }
 
-  return { messages, state, isBusy, sendMessage, pushNote, clear, loadConversation };
+  return { messages, state, isBusy, sendMessage, stopGeneration, pushNote, clear, loadConversation };
 });

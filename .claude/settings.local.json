@@ -11,7 +11,10 @@
       "Bash(npm install *)",
       "Bash(cargo build *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(npx vue-tsc *)",
+      "Bash(Get-ChildItem -Recurse -Path \"D:\\\\zzz\\\\code\\\\clock-lock\\\\src\" -Include \"*.vue\", \"*.ts\" -File)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

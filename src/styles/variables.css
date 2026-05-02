@@ -1,16 +1,16 @@
-/* ── Light theme — Catppuccin Latte + vivid blue/pink accents ─────────────── */
+/* ── Light theme ──────────────────────────────────────────────────────────── */
 :root,
 [data-theme="light"] {
-  --color-bg: #f2f2fb;
+  --color-bg: #f1f5f9;
   --color-surface: #ffffff;
-  --color-surface-hover: #e8e8f5;
-  --color-surface-active: #ddddf0;
-  --color-border: #c8c8e8;
-  --color-border-soft: #dcdcf0;
+  --color-surface-hover: #e2e8f0;
+  --color-surface-active: #cbd5e1;
+  --color-border: #cbd5e1;
+  --color-border-soft: #e2e8f0;
 
   /* Accent palette */
-  --color-accent-blue:   #4578d4;
-  --color-accent-blue-dim: #a0c4f5;
+  --color-accent-blue:   #3b6fd4;
+  --color-accent-blue-dim: #bfdbfe;
   --color-accent-pink:   #db2777;
   --color-accent-pink-dim: #fbcfe8;
   --color-accent-purple: #7c3aed;
@@ -20,17 +20,17 @@
   --color-accent-yellow: #d97706;
   --color-accent-teal:   #0d9488;
 
-  /* Text */
-  --color-text-primary:   #1e1b4b;
-  --color-text-secondary: #3730a3;
-  --color-text-muted:     #7c7cbf;
-  --color-text-faint:     #a5b4fc;
+  /* Text — neutral, not purple */
+  --color-text-primary:   #1e293b;
+  --color-text-secondary: #334155;
+  --color-text-muted:     #64748b;
+  --color-text-faint:     #94a3b8;
 
   /* Surfaces */
-  --color-sidebar-bg:   #eaeaf7;
+  --color-sidebar-bg:   #e8edf5;
   --color-topbar-bg:    #ffffff;
-  --color-topbar-border: #c8c8e8;
-  --color-input-bg:     #f5f5ff;
+  --color-topbar-border: #cbd5e1;
+  --color-input-bg:     #f8fafc;
 
   /* Git */
   --git-modified: #d97706;

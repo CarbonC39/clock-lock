@@ -3,19 +3,34 @@ import { ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { Home, FolderOpen } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useUiStore } from "../stores/uiStore";
+import { highlightCode } from "../composables/useHighlighter";
 import MarkdownEditor from "./MarkdownEditor.vue";
 
 const workspace = useWorkspaceStore();
+const ui = useUiStore();
 
 const annotationNote = ref("");
 const annotationSaved = ref(false);
 const imageDataUrl = ref<string | null>(null);
+const highlightedHtml = ref<string | null>(null);
 
-const IMAGE_EXTS = new Set(["png","jpg","jpeg","gif","webp","svg","ico","bmp","avif"]);
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "ico", "bmp", "avif"]);
 
 function isImage(path: string): boolean {
   return IMAGE_EXTS.has(path.split(".").pop()?.toLowerCase() ?? "");
 }
+
+// Recompute highlight whenever file content or theme changes
+watch(
+  [() => workspace.selectedFileContent, () => ui.isDark],
+  async ([content]) => {
+    highlightedHtml.value = null;
+    if (!content || !workspace.selectedFilePath) return;
+    const filename = workspace.selectedFilePath.replace(/\\/g, "/").split("/").pop() ?? "";
+    highlightedHtml.value = await highlightCode(content, filename, ui.isDark);
+  }
+);
 
 watch(
   () => workspace.selectedFilePath,
@@ -31,9 +46,9 @@ watch(
     }
     if (path && workspace.path && workspace.selectedFileContent === null) {
       try {
-        const relPath = path
-          .replace(workspace.path + "/", "")
-          .replace(workspace.path + "\\", "");
+        const wsNorm = workspace.path.replace(/\\/g, "/");
+        const pathNorm = path.replace(/\\/g, "/");
+        const relPath = pathNorm.startsWith(wsNorm + "/") ? pathNorm.slice(wsNorm.length + 1) : pathNorm;
         const annotations: Record<string, string> = await invoke("get_annotations", {
           workspacePath: workspace.path,
         });
@@ -49,9 +64,9 @@ watch(
 
 async function saveAnnotation() {
   if (!workspace.path || !workspace.selectedFilePath) return;
-  const relPath = workspace.selectedFilePath
-    .replace(workspace.path + "/", "")
-    .replace(workspace.path + "\\", "");
+  const wsNorm = workspace.path.replace(/\\/g, "/");
+  const pathNorm = workspace.selectedFilePath.replace(/\\/g, "/");
+  const relPath = pathNorm.startsWith(wsNorm + "/") ? pathNorm.slice(wsNorm.length + 1) : pathNorm;
   await invoke("save_annotation", {
     workspacePath: workspace.path,
     relPath,
@@ -65,7 +80,7 @@ async function saveAnnotation() {
 <template>
   <div class="workspace-home">
 
-    <!-- ── Empty state ────────────────────────────────── -->
+    <!-- ── Empty state ── -->
     <div v-if="!workspace.path" class="empty-state">
       <div class="open-zone" @click="workspace.openWorkspace()">
         <FolderOpen :size="28" class="open-zone-icon" />
@@ -74,10 +89,10 @@ async function saveAnnotation() {
       </div>
     </div>
 
-    <!-- ── Non-home file selected ─────────────────────── -->
+    <!-- ── Non-home file selected ── -->
     <template v-else-if="workspace.selectedFilePath && !workspace.selectedFilePath.endsWith('home.md')">
       <div class="file-header">
-        <button class="back-btn" title="Back to home" @click="workspace.selectedFilePath = null">
+        <button class="back-btn" title="Back to home" @click="workspace.deselect()">
           <Home :size="14" />
         </button>
         <span class="file-name">{{ workspace.selectedFilePath.split(/[\\/]/).pop() }}</span>
@@ -85,7 +100,14 @@ async function saveAnnotation() {
 
       <!-- Text file -->
       <div v-if="workspace.selectedFileContent !== null" class="file-content">
-        <pre><code>{{ workspace.selectedFileContent }}</code></pre>
+        <!-- Shiki-highlighted -->
+        <div
+          v-if="highlightedHtml"
+          class="shiki-wrap"
+          v-html="highlightedHtml"
+        />
+        <!-- Plain fallback for unrecognized types -->
+        <pre v-else class="plain-code"><code>{{ workspace.selectedFileContent }}</code></pre>
       </div>
 
       <!-- Binary file: image + optional annotation -->
@@ -113,7 +135,7 @@ async function saveAnnotation() {
       </div>
     </template>
 
-    <!-- ── Home markdown ──────────────────────────────── -->
+    <!-- ── Home markdown ── -->
     <template v-else-if="workspace.path">
       <MarkdownEditor
         :key="workspace.path"
@@ -164,10 +186,7 @@ async function saveAnnotation() {
   color: var(--color-accent-blue);
   opacity: 0.7;
 }
-
-.open-zone:hover .open-zone-icon {
-  opacity: 1;
-}
+.open-zone:hover .open-zone-icon { opacity: 1; }
 
 .open-zone-title {
   font-size: 14px;
@@ -219,21 +238,40 @@ async function saveAnnotation() {
   white-space: nowrap;
 }
 
-/* ── Text file ── */
+/* ── File content (text) ── */
 .file-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 0;
 }
 
-.file-content pre {
+/* Shiki output — override shiki's default pre padding to match our layout */
+.shiki-wrap :deep(pre.shiki) {
+  margin: 0;
+  padding: 18px 20px;
+  border-radius: 0;
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 12.5px;
+  line-height: 1.7;
+  min-height: 100%;
+  overflow-x: auto;
+}
+
+.shiki-wrap :deep(pre.shiki code) {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.plain-code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.7;
   color: var(--color-text-secondary);
   white-space: pre-wrap;
   word-break: break-word;
+  padding: 18px 20px;
   margin: 0;
+  min-height: 100%;
 }
 
 /* ── Binary view ── */

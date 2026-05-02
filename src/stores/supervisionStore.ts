@@ -79,11 +79,12 @@ export const useSupervisionStore = defineStore("supervision", () => {
             data.choices?.[0]?.message?.content?.trim() ??
             "Hey! Just checking in. How are things going?";
 
-          const granted = await isPermissionGranted();
-          if (!granted) await requestPermission();
-          sendNotification({ title: "Clock Lock", body: checkinText });
+          let granted = await isPermissionGranted();
+          if (!granted) granted = (await requestPermission()) === "granted";
+          if (granted) sendNotification({ title: "Clock Lock", body: checkinText });
 
           agent.pushNote(`[Supervisor] ${checkinText}`);
+          agent.state = "sleepy";
 
           // Reset activity so it doesn't re-trigger immediately
           reportActivity();

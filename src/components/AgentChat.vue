@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { SendHorizonal, Settings2, Trash2, ScanEye, ChevronDown, ChevronUp } from "lucide-vue-next";
+import { SendHorizonal, Settings2, Trash2, ScanEye, ChevronDown, ChevronUp, Square } from "lucide-vue-next";
 import { useAgentStore, getSlashCommands } from "../stores/agentStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSupervisionStore } from "../stores/supervisionStore";
@@ -102,9 +102,9 @@ onMounted(() => {
         <p>
           This looks like a new project. I can scan the files and write an overview to <strong>home.md</strong>.
         </p>
-        <button class="scan-btn" :disabled="agent.isBusy" @click="inputText = '/scan'">
+        <button class="scan-btn" :disabled="agent.isBusy" @click="agent.sendMessage('/scan')">
           <ScanEye :size="14" />
-          {{ agent.isBusy ? "Scanning…" : "Scan &amp; summarize" }}
+          Scan &amp; summarize
         </button>
       </div>
 
@@ -128,14 +128,15 @@ onMounted(() => {
             v-for="sc in getSlashCommands()"
             :key="sc.id"
             class="shortcut-chip"
-            @click="inputText = sc.cmd"
+            :disabled="agent.isBusy"
+            @click="agent.sendMessage(sc.cmd)"
           >
             {{ sc.cmd }}
           </button>
         </div>
       </div>
 
-      <div class="input-row" :class="{ disabled: agent.isBusy }">
+      <div class="input-row">
         <textarea
           v-model="inputText"
           class="chat-input"
@@ -147,10 +148,13 @@ onMounted(() => {
         />
         <button
           class="send-btn"
-          :disabled="agent.isBusy || !inputText.trim()"
-          @click="send"
+          :class="{ 'is-stop': agent.isBusy }"
+          :disabled="!agent.isBusy && !inputText.trim()"
+          :title="agent.isBusy ? 'Stop' : 'Send'"
+          @click="agent.isBusy ? agent.stopGeneration() : send()"
         >
-          <SendHorizonal :size="14" />
+          <Square v-if="agent.isBusy" :size="11" />
+          <SendHorizonal v-else :size="14" />
         </button>
       </div>
       <div class="input-footer">
@@ -332,17 +336,18 @@ onMounted(() => {
   font-size: 11px;
   font-family: var(--font-mono);
   font-weight: 500;
-  background: color-mix(in srgb, var(--color-accent-purple) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  color: var(--color-accent-purple);
+  color: var(--color-text-muted);
   cursor: pointer;
   transition: all var(--transition);
 }
-.shortcut-chip:hover {
-  background: color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
-  border-color: var(--color-accent-purple);
+.shortcut-chip:hover:not(:disabled) {
+  border-color: var(--color-accent-blue);
+  color: var(--color-accent-blue);
 }
+.shortcut-chip:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Input ── */
 .input-area {
@@ -366,10 +371,6 @@ onMounted(() => {
 
 .input-row:focus-within {
   border-color: var(--color-accent-blue);
-}
-
-.input-row.disabled {
-  opacity: 0.5;
 }
 
 .chat-input {
@@ -408,6 +409,8 @@ onMounted(() => {
   background: color-mix(in srgb, var(--color-accent-blue) 8%, transparent);
 }
 .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.send-btn.is-stop { color: var(--color-accent-red); }
+.send-btn.is-stop:hover { background: color-mix(in srgb, var(--color-accent-red) 8%, transparent); }
 
 .input-footer {
   display: flex;

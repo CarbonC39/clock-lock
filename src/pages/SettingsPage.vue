@@ -157,6 +157,23 @@ async function save() {
                 <span class="toggle-knob" />
               </button>
             </div>
+
+            <div class="field-group" style="margin-top: 8px">
+              <label class="field-label">Launch mode</label>
+              <div class="seg-tabs">
+                <button class="seg-tab" :class="{ active: store.settings.startup_mode === 'window' }" @click="store.settings.startup_mode = 'window'">Window</button>
+                <button class="seg-tab" :class="{ active: store.settings.startup_mode === 'minimized' }" @click="store.settings.startup_mode = 'minimized'">Minimized</button>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Close button</label>
+              <div class="seg-tabs">
+                <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'close' }" @click="store.settings.close_behavior = 'close'">Exit app</button>
+                <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'hide' }" @click="store.settings.close_behavior = 'hide'">Hide to tray</button>
+              </div>
+              <p v-if="store.settings.close_behavior === 'hide'" class="field-hint">Requires tray icon (M7).</p>
+            </div>
           </section>
 
           <!-- Supervision -->
@@ -170,7 +187,7 @@ async function save() {
               </div>
               <button
                 class="toggle-btn"
-                :class="{ on: !sv.dnd }"
+                :class="{ on: sv.dnd }"
                 @click="sv.setDnd(!sv.dnd)"
               >
                 <span class="toggle-knob" />
@@ -307,7 +324,7 @@ async function save() {
 .settings-title {
   font-size: 15px;
   font-weight: 700;
-  color: var(--color-accent-purple);
+  color: var(--color-text-primary);
   margin: 0;
 }
 
@@ -495,6 +512,39 @@ async function save() {
 .toggle-key-btn:hover {
   border-color: var(--color-accent-blue);
   color: var(--color-accent-blue);
+}
+
+/* ── Seg-tabs (Launch mode / Close button) ── */
+.seg-tabs {
+  display: flex;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 2px;
+}
+
+.seg-tab {
+  flex: 1;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: none;
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+  white-space: nowrap;
+  text-align: center;
+}
+
+.seg-tab:hover { color: var(--color-text-primary); }
+
+.seg-tab.active {
+  background: var(--color-bg);
+  color: var(--color-accent-blue);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
 }
 
 /* ── Toggle row ── */

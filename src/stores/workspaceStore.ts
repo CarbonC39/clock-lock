@@ -98,6 +98,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     }
   }
 
+  function deselect() {
+    selectedFilePath.value = null;
+    selectedFileContent.value = null;
+  }
+
   function clear() {
     path.value = null;
     name.value = null;
@@ -127,6 +132,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     refreshTree,
     saveHomeMd,
     selectFile,
+    deselect,
     clear,
   };
 });

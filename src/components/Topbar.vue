@@ -4,9 +4,11 @@ import { useRouter } from "vue-router";
 import { Settings, FolderOpen, Minus, Square, X, PanelBottom } from "lucide-vue-next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useSettingsStore } from "../stores/settingsStore";
 
 const router = useRouter();
 const workspace = useWorkspaceStore();
+const settings = useSettingsStore();
 const toggleWidget = inject<() => Promise<void>>("toggleWidget");
 
 const win = getCurrentWindow();
@@ -26,7 +28,13 @@ onUnmounted(() => {
 
 async function minimize() { await win.minimize(); }
 async function toggleMaximize() { await win.toggleMaximize(); }
-async function close() { await win.hide(); }
+async function close() {
+  if (settings.settings.close_behavior === "hide") {
+    await win.hide();
+  } else {
+    await win.close();
+  }
+}
 </script>
 
 <template>

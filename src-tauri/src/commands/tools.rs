@@ -83,19 +83,29 @@ pub async fn execute_tool(app: &AppHandle, name: &str, args: &Value) -> Result<S
             search_memory(app, ws_hash, query, limit).await
         }
         "run_bash" => {
-            let ws = args["workspace_path"].as_str().map(|s| s.to_string());
             let cmd = args["command"].as_str().ok_or("missing command")?;
-            let shell = args["shell_path"]
-                .as_str()
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string());
-            let result = crate::commands::shell::run_command(ws, cmd.into(), shell).await?;
-            if result.blocked {
-                Ok("BLOCKED by security policy".into())
-            } else if result.success {
-                Ok(result.stdout)
-            } else {
-                Ok(format!("{}\n{}", result.stdout, result.stderr))
+            // Only safe read-only commands may auto-execute from the tool loop.
+            // Unsafe commands must go through the user-approval BashBlock UI instead.
+            match crate::commands::shell::classify_sync(cmd) {
+                "blocked" => Ok("⛔ Blocked by security policy. Do not attempt this command.".into()),
+                "unsafe" => Ok(format!(
+                    "⚠️ This command requires user approval and cannot auto-run.\n\
+                     Present it to the user as a bash block so they can choose to run it:\n\
+                     ```bash\n{cmd}\n```"
+                )),
+                _ => {
+                    let ws = args["workspace_path"].as_str().map(|s| s.to_string());
+                    let shell = args["shell_path"]
+                        .as_str()
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.to_string());
+                    let result = crate::commands::shell::run_command(ws, cmd.into(), shell).await?;
+                    if result.success {
+                        Ok(if result.stdout.trim().is_empty() { "(no output)".into() } else { result.stdout })
+                    } else {
+                        Ok(format!("stderr: {}", result.stderr))
+                    }
+                }
             }
         }
         _ => Err(format!("unknown tool: {name}")),
@@ -222,20 +232,23 @@ async fn append_section(
     let mut new_content = String::new();
     let mut found = false;
 
-    for (_i, line) in lines.iter().enumerate() {
-        new_content.push_str(line);
-        if line.trim() == hl.trim() {
-            found = true;
-        } else if found && line.starts_with('#') && line != &hl {
-            // Reached next heading — insert before it
-            new_content.push_str(&format!("\n{}", text));
+    for line in &lines {
+        // Before writing the next heading, flush accumulated text into the previous section
+        if found && line.starts_with('#') && line.trim() != hl.trim() {
+            new_content.push_str(text);
+            new_content.push('\n');
             found = false;
         }
+        new_content.push_str(line);
         new_content.push('\n');
+        if line.trim() == hl.trim() {
+            found = true;
+        }
     }
     if found {
-        // Heading was the last section — append at end
-        new_content.push_str(&format!("{}\n", text));
+        // Target section was the last one — append at end
+        new_content.push_str(text);
+        new_content.push('\n');
     }
     crate::commands::fs::write_file(path, new_content)
 }

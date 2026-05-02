@@ -11,6 +11,8 @@ export interface AgentSettings {
   max_context_messages: number;
   max_tokens: number;
   shell_path: string;
+  startup_mode: "window" | "minimized";
+  close_behavior: "close" | "hide";
 }
 
 const CLOUD_DEFAULTS = {
@@ -32,6 +34,8 @@ export const useSettingsStore = defineStore("settings", () => {
     max_context_messages: 30,
     max_tokens: 4096,
     shell_path: "",
+    startup_mode: "window",
+    close_behavior: "close",
   });
 
   const loaded = ref(false);
