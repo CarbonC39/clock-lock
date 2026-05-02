@@ -101,20 +101,6 @@ function interact() {
         </div>
 
         <!-- Main Area -->
-      <div class="device-screen">
-        <div class="screen-header">
-          <div class="pet-wrapper" @click="interact">
-            <AgentPet :state="petState" size="sm" />
-          </div>
-          <div class="status-box">
-            <div class="status-dot" :class="agent.isBusy ? 'busy' : 'ready'"></div>
-            <span class="status-text">{{ statusLine }}</span>
-          </div>
-          <button class="restore-btn" @click="emit('restore')">
-            <Maximize2 :size="10" />
-          </button>
-        </div>
-
         <div class="screen-main">
           <div v-if="lastAgentMsg && showBubble" class="speech-bubble" @click="showBubble = false">
             <p>{{ lastAgentMsg }}</p>
@@ -146,7 +132,7 @@ function interact() {
         </div>
       </div>
 
-      <!-- Labeled Physical Buttons -->
+      <!-- Labeled Physical Controls -->
       <div class="physical-controls">
         <div class="control-group">
           <button class="btn-circle" @click="sendQuick('/status')">
