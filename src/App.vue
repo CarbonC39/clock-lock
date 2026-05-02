@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, provide, watch } from "vue";
+import { ref, onMounted, provide, watch, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize, PhysicalSize, PhysicalPosition } from "@tauri-apps/api/window";
 import { useUiStore } from "./stores/uiStore";
@@ -42,23 +42,20 @@ async function enterWidgetMode() {
     const sf = await appWindow.scaleFactor();
     savedState = { x: pos.x, y: pos.y, w: size.width, h: size.height, sf };
 
-    // New physical dimensions
-    const newW = WIDGET_W * sf;
-    const newH = WIDGET_H * sf;
-    
-    // Position to keep bottom-right anchored:
-    // newX + newW = oldX + oldW  =>  newX = oldX + oldW - newW
-    const newX = pos.x + size.width - newW;
-    const newY = pos.y + size.height - newH;
+    const newW = Math.round(WIDGET_W * sf);
+    const newH = Math.round(WIDGET_H * sf);
+    // Anchor bottom-right corner so widget appears at current window's bottom-right
+    const newX = Math.round(pos.x + size.width - newW);
+    const newY = Math.round(pos.y + size.height - newH);
 
+    // Switch Vue first so WidgetWindow renders; then resize (no RouterView flash)
     widgetMode.value = true;
+    await nextTick();
     await appWindow.setAlwaysOnTop(true);
     await appWindow.setMaximizable(false);
     await appWindow.setMinSize(new LogicalSize(WIDGET_W, WIDGET_H));
-    
-    // Apply size then immediately fix position
-    await appWindow.setSize(new PhysicalSize(Math.round(newW), Math.round(newH)));
-    await appWindow.setPosition(new PhysicalPosition(Math.round(newX), Math.round(newY)));
+    await appWindow.setSize(new PhysicalSize(newW, newH));
+    await appWindow.setPosition(new PhysicalPosition(newX, newY));
   } catch (e) {
     console.error(e);
   }
@@ -68,20 +65,21 @@ async function restoreFromWidget() {
   try {
     const size = await appWindow.outerSize();
     const pos = await appWindow.outerPosition();
-    
-    // Position to keep bottom-right anchored:
-    // newX + savedW = curX + curW  =>  newX = curX + curW - savedW
-    const newX = pos.x + size.width - savedState.w;
-    const newY = pos.y + size.height - savedState.h;
 
-    widgetMode.value = false;
+    const newW = Math.round(savedState.w);
+    const newH = Math.round(savedState.h);
+    // Anchor bottom-right corner
+    const newX = Math.round(pos.x + size.width - newW);
+    const newY = Math.round(pos.y + size.height - newH);
+
+    // Resize first so RouterView renders into the correct large window (no squish flash)
     await appWindow.setAlwaysOnTop(false);
     await appWindow.setMaximizable(true);
+    await appWindow.setSize(new PhysicalSize(newW, newH));
+    await appWindow.setPosition(new PhysicalPosition(newX, newY));
+    // Set minSize after resize so it never clamps the current small size
     await appWindow.setMinSize(new LogicalSize(720, 500));
-    
-    // Apply size then immediately fix position
-    await appWindow.setSize(new PhysicalSize(Math.round(savedState.w), Math.round(savedState.h)));
-    await appWindow.setPosition(new PhysicalPosition(Math.round(newX), Math.round(newY)));
+    widgetMode.value = false;
   } catch (e) {
     console.error(e);
   }

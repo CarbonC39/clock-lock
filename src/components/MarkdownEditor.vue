@@ -484,7 +484,7 @@ function cancelRename() {
   font-style: italic;
 }
 .md-rendered :deep(a) { color: var(--color-accent-blue); }
-.md-rendered :deep(strong) { font-weight: 700; color: var(--color-text-primary); }
+.md-rendered :deep(strong) { font-weight: 700; color: var(--color-accent-blue); }
 .md-rendered :deep(em) { color: var(--color-accent-teal); font-style: italic; }
 .md-rendered :deep(hr) { border: none; border-top: 1px solid var(--color-border); margin: 0.8em 0; }
 

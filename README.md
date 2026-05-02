@@ -17,7 +17,7 @@ Built with **Tauri v2 + Vue 3 + Rust**.
 - **Streaming responses** — real-time token-by-token rendering via SSE, OpenAI-compatible (OpenAI, DeepSeek, etc.) and Ollama local models.
 - **Tool-using agent** — the agent can read files, search the codebase, list directories, check git status, and write to home.md autonomously. Tools are invoked via `<tool>` blocks parsed by the frontend; results are fed back in a loop (up to 5 rounds).
 - **Slash commands** — type `/status`, `/remind`, `/review`, `/scan`, `/summarize`, `/focus`, or `/help` for quick actions.
-- **Home.md editing** — the agent can update the project overview directly using `write_home_md` or `append_section` tools. Init scan writes results automatically.
+- **Home.md editing** — the agent reads and writes the project knowledge base (Overview, Todos, Notes). Todos are the **user's personal task list** — the agent adds/checks tasks on request but treats them as user-owned. Init scan writes results automatically.
 - **Interactive bash blocks** — suggested shell commands are classified as safe (auto-run) or unsafe (Approve &amp; Run required). High-risk commands are blocked. Execution is workspace-locked.
 - **Diff view** — agent-proposed file edits rendered as syntax-highlighted unified diffs with an "Apply changes" button. Originals backed up to `.clocklock/drafts/`.
 - **Markdown rendering** — agent responses support GitHub-flavored Markdown with syntax-highlighted code blocks.
@@ -28,7 +28,7 @@ Built with **Tauri v2 + Vue 3 + Rust**.
 - **Event log** — file changes and user-approved bash runs are recorded.
 
 ### Supervision & Companionship
-- **Idle detection** — if no activity for a configurable threshold (default 48 h), the agent sends a friendly check-in notification.
+- **Idle detection** — if no activity for a configurable threshold (default 48 h), the companion sends a friendly check-in in chat and as an OS notification. Falls back to a built-in message when no AI API is configured.
 - **Do Not Disturb** — toggle in Settings to suppress all supervision messages.
 - **Natural language snooze** — reply to a check-in with "skip for a week" or "I have exams" and the agent parses and reschedules.
 - **Tamagotchi pet** — 5-state kaomoji face (idle/thinking/happy/sleepy/excited) with per-state CSS animations and accent colors, driven by agent activity. Prominent in both the chat panel and the widget.

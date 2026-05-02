@@ -47,60 +47,45 @@ export const useSupervisionStore = defineStore("supervision", () => {
       if (agent.isBusy) return;
 
       const settings = useSettingsStore();
-      if (!settings.settings.base_url) return;
-      const prompt =
-        "You are the Clock Lock supervisor. The user has been idle for a while. Send a brief, friendly check-in message (1-2 sentences). Be encouraging but not pushy. Do NOT reply with anything else.";
+      const FALLBACK = "Hey — you've been away for a while. No rush, just checking in. How are things going?";
+      let checkinText = FALLBACK;
 
-      try {
-        const resp = await fetch(
-          `${settings.settings.base_url}/chat/completions`,
-          {
+      // Try AI-generated message; fall back to built-in if unavailable or unconfigured
+      if (settings.settings.base_url) {
+        try {
+          const resp = await fetch(`${settings.settings.base_url}/chat/completions`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              ...(settings.settings.api_key
-                ? { Authorization: `Bearer ${settings.settings.api_key}` }
-                : {}),
+              ...(settings.settings.api_key ? { Authorization: `Bearer ${settings.settings.api_key}` } : {}),
             },
             body: JSON.stringify({
               model: settings.settings.model,
-              messages: [{ role: "user", content: prompt }],
+              messages: [{
+                role: "user",
+                content: "You are the Clock Lock companion. The user has been idle for a while. Send a brief, warm check-in (1-2 sentences). Be encouraging and gentle. Reply with only the message.",
+              }],
               max_tokens: 80,
               temperature: 0.8,
             }),
+          });
+          if (resp.ok) {
+            const data = (await resp.json()) as { choices: { message: { content: string } }[] };
+            checkinText = data.choices?.[0]?.message?.content?.trim() || FALLBACK;
           }
-        );
-
-        if (resp.ok) {
-          const data = (await resp.json()) as {
-            choices: { message: { content: string } }[];
-          };
-          const checkinText =
-            data.choices?.[0]?.message?.content?.trim() ??
-            "Hey! Just checking in. How are things going?";
-
-          let granted = false;
-          try {
-            granted = await isPermissionGranted();
-            if (!granted) granted = (await requestPermission()) === "granted";
-          } catch {
-            // gracefully handle permission rejection or non-Tauri env
-            console.warn("Could not request notification permission");
-          }
-
-          if (granted) {
-            try { sendNotification({ title: "Clock Lock", body: checkinText }); } catch {}
-          }
-
-          agent.pushNote(`[Supervisor] ${checkinText}`);
-          agent.state = "sleepy";
-
-          // Reset activity so it doesn't re-trigger immediately
-          reportActivity();
-        }
-      } catch {
-        // silently fail
+        } catch { /* use fallback */ }
       }
+
+      // OS notification (best-effort)
+      try {
+        let granted = await isPermissionGranted();
+        if (!granted) granted = (await requestPermission()) === "granted";
+        if (granted) sendNotification({ title: "Clock Lock", body: checkinText });
+      } catch { /* not available in this environment */ }
+
+      agent.pushNote(`[check-in] ${checkinText}`);
+      agent.state = "sleepy";
+      reportActivity();
     });
   }
 

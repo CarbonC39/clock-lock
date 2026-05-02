@@ -23,6 +23,10 @@
     "core:window:allow-set-min-size",
     "core:window:allow-set-size",
     "core:window:allow-outer-size",
-    "core:window:allow-set-maximizable"
+    "core:window:allow-set-maximizable",
+    "core:window:allow-outer-position",
+    "core:window:allow-set-position",
+    "core:window:allow-scale-factor",
+    "notification:allow-is-permission-granted"
   ]
 }
