@@ -76,6 +76,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     fileTree.value = tree;
   }
 
+  async function refreshHomeMd() {
+    if (!path.value) return;
+    try {
+      const [, mdContent] = await invoke<[string, string]>("ensure_home_md", { workspacePath: path.value });
+      homeMdContent.value = mdContent;
+    } catch (e) {
+      console.error("Failed to refresh home.md:", e);
+    }
+  }
+
   async function _saveHomeMd(content: string) {
     if (!homeMdPath.value) return;
     homeMdContent.value = content;
@@ -151,6 +161,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     openWorkspace,
     loadWorkspace,
     refreshTree,
+    refreshHomeMd,
     saveHomeMd,
     completeFirstTodo,
     selectFile,

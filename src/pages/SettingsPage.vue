@@ -170,11 +170,19 @@ async function save() {
               <label class="field-label">Close button</label>
               <div class="seg-tabs">
                 <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'close' }" @click="store.settings.close_behavior = 'close'">Exit app</button>
-                <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'hide' }" @click="store.settings.close_behavior = 'hide'">Hide to tray</button>
+                <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'hide' }" @click="store.settings.close_behavior = 'hide'">Hide to tray</button>        
               </div>
               <p v-if="store.settings.close_behavior === 'hide'" class="field-hint">Requires tray icon (M7).</p>
             </div>
-          </section>
+
+            <div class="field-group">
+              <label class="field-label">Home location</label>
+              <div class="seg-tabs">
+                <button class="seg-tab" :class="{ active: store.settings.home_md_mode === 'appdata' }" @click="store.settings.home_md_mode = 'appdata'">AppData</button>
+                <button class="seg-tab" :class="{ active: store.settings.home_md_mode === 'workspace' }" @click="store.settings.home_md_mode = 'workspace'">Workspace</button>        
+              </div>
+              <p class="field-hint">Workspace mode saves home.md in .clock-lock/</p>
+            </div>          </section>
 
           <!-- Supervision -->
           <section class="section">

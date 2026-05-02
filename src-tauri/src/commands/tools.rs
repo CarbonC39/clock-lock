@@ -180,7 +180,7 @@ fn search_recursive(
                 break;
             }
             let name = entry.file_name().to_string_lossy().to_string();
-            if matches!(name.as_str(), ".git" | ".clocklock") {
+            if matches!(name.as_str(), ".git" | ".clock-lock") {
                 continue;
             }
             let path = entry.path();

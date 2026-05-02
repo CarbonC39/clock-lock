@@ -400,6 +400,11 @@ Example: <tool>read_file</tool><args>{"path":"..."}</args>
         }
         currentTool.value = null;
 
+        // Auto-refresh home.md if it was modified
+        if (toolResults.some(r => r.name === "write_home_md" || r.name === "append_section")) {
+          workspace.refreshHomeMd().catch(console.warn);
+        }
+
         // Append to API messages for next round
         apiMessages.push({ role: "assistant", content: assistant.content });
         apiMessages.push({

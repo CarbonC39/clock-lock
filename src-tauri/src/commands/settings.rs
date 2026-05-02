@@ -11,6 +11,7 @@ fn default_shell_path() -> String {
 }
 fn default_startup_mode() -> String { "window".into() }
 fn default_close_behavior() -> String { "close".into() }
+fn default_home_md_mode() -> String { "appdata".into() }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AgentSettings {
@@ -29,6 +30,8 @@ pub struct AgentSettings {
     pub startup_mode: String,
     #[serde(default = "default_close_behavior")]
     pub close_behavior: String,
+    #[serde(default = "default_home_md_mode")]
+    pub home_md_mode: String,
 }
 
 impl Default for AgentSettings {
@@ -44,6 +47,7 @@ impl Default for AgentSettings {
             shell_path: default_shell_path(),
             startup_mode: "window".into(),
             close_behavior: "close".into(),
+            home_md_mode: "appdata".into(),
         }
     }
 }
@@ -106,6 +110,8 @@ struct StoredSettings {
     startup_mode: String,
     #[serde(default = "default_close_behavior")]
     close_behavior: String,
+    #[serde(default = "default_home_md_mode")]
+    home_md_mode: String,
 }
 
 #[tauri::command]
@@ -136,6 +142,7 @@ pub fn get_settings(app: tauri::AppHandle) -> AgentSettings {
         shell_path: stored.shell_path,
         startup_mode: stored.startup_mode,
         close_behavior: stored.close_behavior,
+        home_md_mode: stored.home_md_mode,
     }
 }
 
@@ -154,6 +161,7 @@ pub fn save_settings(app: tauri::AppHandle, settings: AgentSettings) -> Result<(
         shell_path: settings.shell_path,
         startup_mode: settings.startup_mode,
         close_behavior: settings.close_behavior,
+        home_md_mode: settings.home_md_mode,
     };
     let json = serde_json::to_string_pretty(&stored).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())

@@ -13,6 +13,7 @@ export interface AgentSettings {
   shell_path: string;
   startup_mode: "window" | "minimized";
   close_behavior: "close" | "hide";
+  home_md_mode: "appdata" | "workspace";
 }
 
 const CLOUD_DEFAULTS = {
@@ -36,6 +37,7 @@ export const useSettingsStore = defineStore("settings", () => {
     shell_path: "",
     startup_mode: "window",
     close_behavior: "close",
+    home_md_mode: "appdata",
   });
 
   const loaded = ref(false);

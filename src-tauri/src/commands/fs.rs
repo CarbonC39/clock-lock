@@ -48,6 +48,12 @@ pub fn workspace_hash(path: &str) -> String {
 
 /// Returns the per-workspace app-data directory, creating it if needed.
 fn workspace_data_dir(app: &tauri::AppHandle, workspace_path: &str) -> Result<std::path::PathBuf, String> {
+    let settings = crate::commands::settings::get_settings(app.clone());
+    if settings.home_md_mode == "workspace" {
+        let dir = Path::new(workspace_path).join(".clock-lock");
+        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        return Ok(dir);
+    }
     let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let dir = base.join("workspaces").join(workspace_hash(workspace_path));
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -134,7 +140,7 @@ fn build_tree(
     let mut nodes = Vec::new();
     for entry in entries {
         let name = entry.file_name().to_string_lossy().to_string();
-        if matches!(name.as_str(), ".git" | ".clocklock") {
+        if matches!(name.as_str(), ".git" | ".clock-lock") {
             continue;
         }
 
@@ -430,7 +436,7 @@ fn search_recursive(
         for entry in entries.filter_map(|e: Result<std::fs::DirEntry, std::io::Error>| e.ok()) {
             if results.len() >= limit { break; }
             let name = entry.file_name().to_string_lossy().to_string();
-            if matches!(name.as_str(), ".git" | ".clocklock") { continue; }
+            if matches!(name.as_str(), ".git" | ".clock-lock") { continue; }
             let path = entry.path();
             let rel = path.strip_prefix(base)
                 .map(|p: &Path| p.to_string_lossy().replace('\\', "/"))
