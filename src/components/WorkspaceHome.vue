@@ -137,11 +137,15 @@ async function saveAnnotation() {
     </template>
 
     <!-- ── Home markdown ── -->
-    <template v-else-if="workspace.path">
+    <template v-else-if="workspace.path && workspace.homeData">
       <MarkdownEditor
         :key="workspace.path"
-        :content="workspace.homeMdContent"
-        @update:content="workspace.saveHomeMd"
+        :data="workspace.homeData"
+        @save-overview="workspace.saveOverview"
+        @save-notes="workspace.saveNotes"
+        @add-todo="workspace.addTodo"
+        @toggle-todo="(i, done) => workspace.toggleTodo(i, done)"
+        @delete-todo="workspace.deleteTodo"
       />
     </template>
 

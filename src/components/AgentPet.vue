@@ -87,10 +87,10 @@ const sizeClass = computed(() => `pet-${props.size ?? "md"}`);
 .pet-md  { font-size: 20px; line-height: 1; }
 .pet-lg  { font-size: 36px; }
 
-/* ── Per-state colors (more subtle) ── */
-.pet-state-idle     { color: var(--color-text-primary); }
-.pet-state-thinking { color: color-mix(in srgb, var(--color-accent-blue) 80%, var(--color-text-primary)); }
-.pet-state-happy    { color: color-mix(in srgb, var(--color-accent-green) 80%, var(--color-text-primary)); }
+/* ── Per-state colors ── */
+.pet-state-idle     { color: var(--color-accent-purple); }
+.pet-state-thinking { color: var(--color-accent-blue); }
+.pet-state-happy    { color: var(--color-accent-green); }
 .pet-state-sleepy   { color: var(--color-text-muted); }
-.pet-state-excited  { color: color-mix(in srgb, var(--color-accent-pink) 80%, var(--color-text-primary)); }
+.pet-state-excited  { color: var(--color-accent-pink); }
 </style>

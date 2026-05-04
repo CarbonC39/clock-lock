@@ -5,9 +5,10 @@ mod watcher;
 
 use commands::agent::chat_stream;
 use commands::fs::{
-    apply_diff_patch, ensure_home_md, get_annotations, get_git_status, get_last_workspace,
-    get_workspace_hash, list_dir, open_in_explorer, read_file, read_image_b64, save_annotation,
-    search_files, set_last_workspace, write_file, write_file_with_backup,
+    add_todo_cmd, apply_diff_patch, delete_todo, ensure_home_md, get_annotations, get_git_status,
+    get_last_workspace, get_workspace_hash, list_dir, open_in_explorer, read_file, read_home,
+    read_image_b64, save_annotation, save_home, search_files, set_last_workspace, toggle_todo,
+    write_file, write_file_with_backup,
 };
 use commands::memory::{
     clear_conversation, ensure_conversation, get_events, get_session_state, load_messages,
@@ -45,6 +46,11 @@ pub fn run() {
             write_file,
             write_file_with_backup,
             ensure_home_md,
+            read_home,
+            save_home,
+            add_todo_cmd,
+            toggle_todo,
+            delete_todo,
             get_git_status,
             save_annotation,
             get_annotations,

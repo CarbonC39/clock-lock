@@ -39,6 +39,8 @@ export const useSupervisionStore = defineStore("supervision", () => {
     if (isRunning.value) return;
     isRunning.value = true;
 
+    // Sync persisted settings to Rust before starting (Rust defaults to 48h)
+    invoke("configure_supervision", { idleHours: idleHours.value, dnd: dnd.value }).catch(() => {});
     invoke("start_supervision").catch(console.warn);
 
     unlistenCheckin = await listen("supervision-checkin", async () => {
@@ -63,7 +65,7 @@ export const useSupervisionStore = defineStore("supervision", () => {
               model: settings.settings.model,
               messages: [{
                 role: "user",
-                content: "You are the Clock Lock companion. The user has been idle for a while. Send a brief, warm check-in (1-2 sentences). Be encouraging and gentle. Reply with only the message.",
+                content: "You are Clock Lock, a peer coworker for ADHD developers. The user has been away from their project for a while. Write one short, natural check-in — like a coworker pinging you on Slack. No emojis. Reply with only the message text.",
               }],
               max_tokens: 80,
               temperature: 0.8,
@@ -83,8 +85,8 @@ export const useSupervisionStore = defineStore("supervision", () => {
         if (granted) sendNotification({ title: "Clock Lock", body: checkinText });
       } catch { /* not available in this environment */ }
 
-      agent.pushNote(`[check-in] ${checkinText}`);
-      agent.state = "sleepy";
+      agent.pushNote(`Clock Lock: ${checkinText}`);
+      agent.setState("sleepy");
       reportActivity();
     });
   }

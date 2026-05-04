@@ -80,8 +80,8 @@ onMounted(() => {
       <div v-if="!agent.messages.length" class="intro">
         <AgentPet :state="agent.state" size="lg" />
         <p class="intro-text">
-          Hi! I'm your AI workspace companion.<br>
-          Open a workspace and ask me anything about your project.
+          Hey, I'm Clock Lock — your dev coworker.<br>
+          Open a workspace, or just tell me what you're working on.
         </p>
         <div v-if="!settings.settings.api_key && settings.settings.provider === 'cloud'" class="setup-hint">
           Configure your API key in

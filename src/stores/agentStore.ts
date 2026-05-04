@@ -56,7 +56,7 @@ const NATIVE_TOOLS = [
     type: "function",
     function: {
       name: "read_home_md",
-      description: "Read our shared archive and goals.",
+      description: "Read the user's project knowledge base (home.md): their Overview, personal Todos, and Notes.",
       parameters: {
         type: "object",
         properties: {
@@ -86,18 +86,48 @@ const NATIVE_TOOLS = [
   {
     type: "function",
     function: {
-      name: "patch_markdown_section",
-      description: "Surgically update a specific section in a markdown file (like home.md).",
+      name: "update_overview",
+      description: "Replace the Overview section in home.md with a new project description.",
       parameters: {
         type: "object",
         properties: {
           thought_process: { type: "string", description: "Mandatory: Why is this update necessary?" },
           workspace_path: { type: "string" },
-          file_name: { type: "string", description: "Usually 'home.md'" },
-          heading: { type: "string", description: "The section heading, e.g., 'Todos' or 'Notes'" },
-          new_content: { type: "string", description: "The new content for this section." },
+          text: { type: "string", description: "New overview content (markdown prose)." },
         },
-        required: ["thought_process", "workspace_path", "file_name", "heading", "new_content"],
+        required: ["thought_process", "workspace_path", "text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_todo",
+      description: "Add a new unchecked task to the user's Todos list in home.md.",
+      parameters: {
+        type: "object",
+        properties: {
+          thought_process: { type: "string", description: "Mandatory: Why add this task now?" },
+          workspace_path: { type: "string" },
+          text: { type: "string", description: "Task description (short, actionable)." },
+        },
+        required: ["thought_process", "workspace_path", "text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "append_notes",
+      description: "Append new text to the Notes section in home.md. Never replaces existing notes.",
+      parameters: {
+        type: "object",
+        properties: {
+          thought_process: { type: "string", description: "Mandatory: What observation to record." },
+          workspace_path: { type: "string" },
+          text: { type: "string", description: "Text to append (separated from prior notes by a blank line)." },
+        },
+        required: ["thought_process", "workspace_path", "text"],
       },
     },
   },
@@ -189,7 +219,7 @@ function expandSlashCommand(cmd: string, workspace: ReturnType<typeof useWorkspa
         .map((n) => `${n.is_dir ? "📁" : "📄"} ${n.name}${n.git_status ? ` [${n.git_status}]` : ""}`)
         .slice(0, 80).join("\n");
       workspace.isNewProject = false;
-      return `Let's get to know this project. I'll show you the file tree below. Use your tools to peek at config files and README. Then, initialize our home.md. File tree:\n${fileList}`;
+      return `Initialize this workspace. Path: "${workspace.path}"\n\nSteps (briefly tell the user your plan in one line, then execute in order):\n1. Call \`list_dir\` to get the full structure. Read key files (README, package.json, Cargo.toml).\n2. Call \`update_overview\` to write a 2-3 sentence project description (what it is, its tech stack).\n3. Call \`add_todo\` 1-2 times to add the first micro-tasks (each ≤15 min).\n4. Close with: what you found, the single most important first step, and ask if that's where they want to start.\n\nFile tree preview:\n${fileList}`;
     }
     case "/summarize":
       return `Condense our conversation into one supportive paragraph. Highlight key decisions and achievements.`;
@@ -208,10 +238,15 @@ export const useAgentStore = defineStore("agent", () => {
   const convId = ref<string | null>(null);
   let happyTimeoutId: ReturnType<typeof setTimeout> | null = null;
   let cancelRequested = false;
-  let msgCounter = 0; // Counter for auto-summarization
+  let msgCounter = 0;
+  let lastSummarizeAt = 0;
+  let unlistenFsChange: (() => void) | null = null;
   const MAX_TOOL_ROUNDS = 5;
 
   async function summarizeConversation() {
+    const now = Date.now();
+    if (now - lastSummarizeAt < 60_000) return;
+    lastSummarizeAt = now;
     const workspace = useWorkspaceStore();
     const settings = useSettingsStore();
     if (!messages.value.length || !workspace.hash) return;
@@ -271,7 +306,8 @@ export const useAgentStore = defineStore("agent", () => {
     // Update active timestamp
     workspace.saveSessionState({});
 
-    listen("fs-change", () => {
+    unlistenFsChange?.();
+    unlistenFsChange = await listen("fs-change", () => {
       if (isBusy.value) return;
       if (happyTimeoutId) clearTimeout(happyTimeoutId);
       state.value = "happy";
@@ -290,44 +326,67 @@ export const useAgentStore = defineStore("agent", () => {
     }).catch(console.warn);
   }
 
+  function buildRecentActivitySummary(): string {
+    const recent = messages.value.slice(-20);
+    const errorCount = recent.filter(m =>
+      m.error ||
+      (m.role === "tool" && m.content?.startsWith("Error:")) ||
+      (m.role === "assistant" && /\berror\b/i.test(m.content ?? ""))
+    ).length;
+    const toolRounds = recent.filter(m => m.role === "tool").length;
+    const lastSummary = useWorkspaceStore().sessionState?.last_summary;
+
+    const parts: string[] = [];
+    if (errorCount >= 3) parts.push(`User has hit ${errorCount} errors recently — may be stuck or frustrated.`);
+    else if (toolRounds >= 8) parts.push(`Dense tool-call session — complex task in progress.`);
+    if (lastSummary) parts.push(`Previous session: ${lastSummary}`);
+    return parts.join(" ");
+  }
+
   async function buildSystemPrompt(): Promise<string> {
     const workspace = useWorkspaceStore();
     const settings = useSettingsStore();
-    const personality = settings.settings.personality || "supportive senior developer buddy";
+    const personality = settings.settings.personality || "pragmatic and warm senior developer";
+    const activity = buildRecentActivitySummary();
 
-    let prompt = `You are **Clock Lock** — a Cyber-Coworker companion for personal developers.
-Your mission: Help the user stay focused, reduce anxiety, and maintain momentum on their project.
+    return `You are **Clock Lock** — a cyber-coworker for ADHD developers. You are a peer, not a servant or a mentor.
 
-## Personality: ${personality}
-- Warm, peer-like, encouraging. Use "you/your" (not "we/us" — these are the USER'S todos, not ours).
-- ADHD-friendly: concise, actionable, broken into tiny steps.
-- Critique code and logic, never the person. Avoid harsh or dismissive language.
+## Personality
+${personality}. Direct and literal — no vague metaphors. High predictability: say what you will do before doing it.
 
-## home.md — the user's project knowledge base
-home.md has sections: Overview (project description), Todos (USER'S personal task list), Notes.
-**The Todos belong to the user — they are their personal tasks, not a shared list.**
-When they ask you to add or check off a todo, do it for them. But never add tasks as if they were your tasks.
-Use \`patch_markdown_section\` or \`append_section\` to update home.md.
+## On errors and frustration
+When the user hits errors or expresses frustration, respond factually and without implying personal fault. Attribute problems to the environment or the task, not the person.
+Example: "Dependency conflicts like this are common — nothing to do with your code. Let's trace it."
 
-## Tool use
-ALWAYS use tools to gather evidence before answering. Don't guess file content — read it.
-Propose source-code edits as \`\`\`diff blocks. NEVER write to source files directly.
-For shell commands that modify anything, output a \`\`\`bash block for the user to approve.
+## After every response
+End with 1–3 concrete, low-effort next options so the user is never left with a blank prompt.
 
-## ADHD Micro-Tasking
-If a goal sounds large or overwhelming, break it into tiny first steps.
-Keep starting resistance as low as possible.
+## home.md
+Three fixed sections — do not invent others:
+- **Overview**: project description (call \`update_overview\` to change it)
+- **Todos**: user's task list (call \`add_todo\` to add tasks; the user manages completion)
+- **Notes**: running log (call \`append_notes\` to add observations — never replaces, only appends)
 
-### Current context:
-- Workspace: ${workspace.name || "None"}
-- Active file: ${workspace.selectedFilePath || "None"}`;
+## Tools
+Use tools only when you need evidence. Prefer \`read_file\` over \`run_bash\` for reading files.
+Use the workspace_path from context for every tool call.
+Edits → \`\`\`diff\`\`\` blocks. Mutating shell commands → \`\`\`bash\`\`\` blocks (user approves before execution).
 
-    return prompt;
+## Context
+- Workspace: ${workspace.name || "none"}
+- Workspace path: ${workspace.path || "none"}
+- Active file: ${workspace.selectedFilePath || "none"}${activity ? `\n- Recent activity: ${activity}` : ""}`;
   }
 
   function injectWorkspace(args: Record<string, any>): Record<string, any> {
     const workspace = useWorkspaceStore();
-    if (!args["workspace_path"] && workspace.path) args["workspace_path"] = workspace.path;
+    if (!workspace.path) return args;
+    const wp: string = args["workspace_path"] ?? "";
+    // Override if missing, relative, or clearly wrong (doesn't start with workspace path prefix)
+    const isAbsolute = /^([A-Za-z]:[\\/]|\/)/.test(wp);
+    if (!wp || !isAbsolute) {
+      args["workspace_path"] = workspace.path;
+    }
     return args;
   }
 
@@ -365,14 +424,23 @@ Keep starting resistance as low as possible.
       { role: "system", content: await buildSystemPrompt() },
       ...messages.value
         .slice(0, -1)
-        .filter(m => ["user", "assistant", "system", "tool"].includes(m.role))
+        .filter(m => {
+          if (!["user", "assistant", "system", "tool"].includes(m.role)) return false;
+          // Drop orphaned tool-chain fragments loaded from DB (only role+content persisted).
+          const isDbLoaded = m.id.startsWith("db-");
+          if (isDbLoaded) {
+            if (m.role === "tool" && !m.tool_call_id) return false;
+            if (m.role === "assistant" && !m.content?.trim() && !m.tool_calls) return false;
+          }
+          return true;
+        })
         .slice(-settings.settings.max_context_messages)
-        .map(m => ({ 
-          role: m.role, 
-          content: m.content || null, 
-          tool_calls: m.tool_calls,
-          tool_call_id: m.tool_call_id,
-          name: m.name 
+        .map(m => ({
+          role: m.role,
+          content: m.content || "",
+          ...(m.tool_calls   ? { tool_calls:   m.tool_calls }   : {}),
+          ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+          ...(m.name         ? { name:         m.name }         : {}),
         })),
       { role: "user", content: userText },
     ];
@@ -380,8 +448,10 @@ Keep starting resistance as low as possible.
     cancelRequested = false;
     let success = true;
 
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    // Loop runs up to MAX_TOOL_ROUNDS tool-calling rounds, then one guaranteed text-only round.
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       if (cancelRequested) { success = false; break; }
+      const isTextOnlyRound = round === MAX_TOOL_ROUNDS;
       const assistantId = crypto.randomUUID();
       const assistantMsg: ChatMessage = { id: assistantId, role: "assistant", content: "", timestamp: Date.now(), isStreaming: true };
       messages.value.push(assistantMsg);
@@ -411,7 +481,8 @@ Keep starting resistance as low as possible.
         await invoke("chat_stream", {
           msgId: assistantId,
           messages: apiMessages,
-          tools: NATIVE_TOOLS,
+          // Empty tools array on the final round forces a text-only response from the model.
+          tools: isTextOnlyRound ? [] : NATIVE_TOOLS,
           baseUrl: settings.settings.base_url,
           apiKey: settings.settings.api_key,
           model: settings.settings.model,
@@ -423,14 +494,14 @@ Keep starting resistance as low as possible.
         unlistenError();
         if (assistant.error) break;
 
-        if (toolCalls.length === 0) {
+        if (toolCalls.length === 0 || isTextOnlyRound) {
           persistMessage({ ...assistant, id: assistantId, timestamp: Date.now() });
-          break; 
+          break;
         }
 
         assistant.tool_calls = toolCalls;
         persistMessage({ ...assistant, id: assistantId, timestamp: Date.now() });
-        apiMessages.push({ role: "assistant", content: assistant.content || null, tool_calls: toolCalls });
+        apiMessages.push({ role: "assistant", content: assistant.content || "", tool_calls: toolCalls });
 
         for (const tc of toolCalls) {
           currentTool.value = tc.function.name;
@@ -448,13 +519,8 @@ Keep starting resistance as low as possible.
           const finalArgs = injectWorkspace(args);
           let result: string;
           try {
-            if (tc.function.name === "patch_markdown_section") {
-              result = await invoke<string>("invoke_tool", { 
-                toolName: "patch_markdown_section", 
-                args: finalArgs 
-              });
-            } else if (tc.function.name === "split_task") {
-              // We return the raw stringified args so the UI can render the card
+            if (tc.function.name === "split_task") {
+              // Return raw args so the UI can render the task card
               result = tc.function.arguments;
             } else {
               result = await invoke<string>("invoke_tool", { toolName: tc.function.name, args: finalArgs });
@@ -467,7 +533,7 @@ Keep starting resistance as low as possible.
           messages.value.push(toolMsg);
           apiMessages.push({ role: "tool", tool_call_id: tc.id, name: tc.function.name, content: result });
 
-          if (["write_home_md", "append_section", "patch_markdown_section"].includes(tc.function.name)) {
+          if (["update_overview", "add_todo", "append_notes"].includes(tc.function.name)) {
             workspace.refreshHomeMd().catch(console.warn);
           }
         }
@@ -497,7 +563,11 @@ Keep starting resistance as low as possible.
 
   function stopGeneration() { cancelRequested = true; }
   function pushNote(text: string) { messages.value.push({ id: crypto.randomUUID(), role: "system-note", content: text, timestamp: Date.now() }); }
+  function setState(s: AgentState) { state.value = s; }
   function clear() {
+    unlistenFsChange?.();
+    unlistenFsChange = null;
+    msgCounter = 0;
     const workspace = useWorkspaceStore();
     if (workspace.hash && convId.value) invoke("clear_conversation", { workspaceHash: workspace.hash, convId: convId.value }).catch(console.warn);
     messages.value = [];
@@ -505,5 +575,5 @@ Keep starting resistance as low as possible.
     isBusy.value = false;
   }
 
-  return { messages, state, isBusy, currentTool, sendMessage, stopGeneration, pushNote, clear, loadConversation };
+  return { messages, state, isBusy, currentTool, sendMessage, stopGeneration, pushNote, setState, clear, loadConversation };
 });

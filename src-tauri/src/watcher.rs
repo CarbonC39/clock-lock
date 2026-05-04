@@ -54,6 +54,10 @@ pub fn start_watching(app: AppHandle, workspace_path: String) -> Result<(), Stri
 
         *last = Instant::now();
         let _ = app_clone.emit("fs-change", ());
+        // Notify all windows when home.md changes (e.g., external editor edit)
+        if event.paths.iter().any(|p| p.file_name().map(|n| n == "home.md").unwrap_or(false)) {
+            let _ = app_clone.emit("home-md-changed", ());
+        }
     })
     .map_err(|e| e.to_string())?;
 

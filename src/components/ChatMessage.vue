@@ -3,24 +3,30 @@ import { ref, computed } from "vue";
 import { marked } from "marked";
 import { Wrench, ChevronDown, ChevronRight, Brain, ListTodo } from "lucide-vue-next";
 import type { ChatMessage } from "../stores/agentStore";
-import { useAgentStore } from "../stores/agentStore";
+import { useWorkspaceStore } from "../stores/workspaceStore";
 import BashBlock from "./BashBlock.vue";
 import DiffView from "./DiffView.vue";
 
 marked.setOptions({ gfm: true, breaks: true });
 
 const props = defineProps<{ message: ChatMessage }>();
-const agent = useAgentStore();
+const workspace = useWorkspaceStore();
 
 const toolExpanded = ref(false);
 const thoughtExpanded = ref(false);
 
-async function acceptSubtasks(content: string) {
+const taskBreakdown = computed(() => {
+  if (props.message.name !== "split_task") return null;
+  try { return JSON.parse(props.message.content); } catch { return null; }
+});
+
+async function acceptSubtasks() {
+  if (!taskBreakdown.value || !workspace.path) return;
   try {
-    const data = JSON.parse(content);
-    const formatted = data.subtasks.map((t: string) => `- [ ] ${t}`).join("\n");
-    // Call agent store to send the patch command
-    await agent.sendMessage(`Thanks! Let's use these steps for "${data.original_task}":\n${formatted}\n\nPlease update our home.md Todos with these.`);
+    const { subtasks } = taskBreakdown.value;
+    for (const text of subtasks as string[]) {
+      await workspace.addTodo(text);
+    }
   } catch (e) {
     console.error("Failed to accept subtasks:", e);
   }
@@ -97,14 +103,14 @@ function renderMd(src: string): string {
         <span>Task Breakdown</span>
       </div>
       <div class="card-body">
-        <p class="original-task">{{ JSON.parse(message.content).original_task }}</p>
+        <p class="original-task">{{ taskBreakdown?.original_task }}</p>
         <ul class="subtask-list">
-          <li v-for="(st, i) in JSON.parse(message.content).subtasks" :key="i">
+          <li v-for="(st, i) in taskBreakdown?.subtasks" :key="i">
             <div class="bullet" />
             <span>{{ st }}</span>
           </li>
         </ul>
-        <button class="accept-btn" @click="acceptSubtasks(message.content)">
+        <button class="accept-btn" @click="acceptSubtasks()">
           Accept & Add to Todos
         </button>
       </div>
@@ -465,6 +471,6 @@ function renderMd(src: string): string {
 .msg-assistant .markdown-body a { color: var(--color-accent-blue); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--color-accent-blue) 35%, transparent); }
 
 .msg-assistant .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 0.75em; font-size: 12px; }
-.msg-assistant .markdown-body th { background: color-mix(in srgb, var(--color-accent-blue) 10%, transparent); color: var(--color-accent-blue); font-weight: 700; padding: 5px 10px; border: 1px solid var(--border-color); text-align: left; }
-.msg-assistant .markdown-body td { border: 1px solid var(--border-color); padding: 4px 10px; color: var(--color-text-secondary); }
+.msg-assistant .markdown-body th { background: color-mix(in srgb, var(--color-accent-blue) 10%, transparent); color: var(--color-accent-blue); font-weight: 700; padding: 5px 10px; border: 1px solid var(--color-border); text-align: left; }
+.msg-assistant .markdown-body td { border: 1px solid var(--color-border); padding: 4px 10px; color: var(--color-text-secondary); }
 </style>

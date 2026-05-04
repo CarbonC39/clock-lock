@@ -14,7 +14,12 @@
       "Bash(git commit -m ' *)",
       "Bash(npx vue-tsc *)",
       "Bash(Get-ChildItem -Recurse -Path \"D:\\\\zzz\\\\code\\\\clock-lock\\\\src\" -Include \"*.vue\", \"*.ts\" -File)",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Z\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--zzz-code-clock-lock\\\\12dd3bb6-fd0b-4bd7-8f23-640267c38f68\\\\tasks\\\\b8h2182oh.output\" -Wait)",
+      "Bash(Select-String --line-buffered \"Running|ready|error|Error|panic|warning: unused|Finished|Compiling|window\")",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Z\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--zzz-code-clock-lock\\\\12dd3bb6-fd0b-4bd7-8f23-640267c38f68\\\\tasks\\\\bavlkbnte.output\" -Wait)",
+      "Bash(Select-String --line-buffered \"ready|Running|error|Error|panic|Finished|window created\")"
     ]
   }
 }

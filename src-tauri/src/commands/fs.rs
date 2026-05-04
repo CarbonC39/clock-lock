@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::Path,
+    time::UNIX_EPOCH,
 };
 
 use serde::{Deserialize, Serialize};
@@ -14,6 +15,118 @@ pub struct FileNode {
     pub is_dir: bool,
     pub children: Option<Vec<FileNode>>,
     pub git_status: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct TodoItem {
+    pub text: String,
+    pub done: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct HomeData {
+    pub overview: String,
+    pub todos: Vec<TodoItem>,
+    pub notes: String,
+    #[serde(default)]
+    pub last_modified: u64,
+}
+
+// ── HomeData helpers ──────────────────────────────────────────────────────────
+
+fn canonical_section(heading: &str) -> &'static str {
+    match heading.trim().to_lowercase().as_str() {
+        "overview" | "about" | "project" | "description" => "overview",
+        "todos" | "todo" | "tasks" | "my tasks" | "task list" | "progress" | "in progress" => "todos",
+        _ => "notes",
+    }
+}
+
+fn is_placeholder(s: &str) -> bool {
+    let t = s.trim();
+    t.starts_with("*No ") && t.ends_with('*')
+}
+
+fn parse_todos(body: &str) -> Vec<TodoItem> {
+    body.lines().filter_map(|l| {
+        let l = l.trim();
+        if let Some(rest) = l.strip_prefix("- [ ] ") {
+            Some(TodoItem { text: rest.to_string(), done: false })
+        } else if let Some(rest) = l.strip_prefix("- [x] ").or_else(|| l.strip_prefix("- [X] ")) {
+            Some(TodoItem { text: rest.to_string(), done: true })
+        } else {
+            None
+        }
+    }).collect()
+}
+
+pub fn home_from_str(s: &str) -> HomeData {
+    let mut cur_key: Option<&'static str> = None;
+    let mut cur_body = String::new();
+    let mut sections: Vec<(&'static str, String)> = Vec::new();
+
+    for line in s.lines() {
+        if let Some(heading) = line.strip_prefix("# ") {
+            if let Some(key) = cur_key.take() {
+                sections.push((key, std::mem::take(&mut cur_body).trim().to_string()));
+            }
+            cur_key = Some(canonical_section(heading));
+        } else if cur_key.is_some() {
+            cur_body.push_str(line);
+            cur_body.push('\n');
+        }
+    }
+    if let Some(key) = cur_key.take() {
+        sections.push((key, cur_body.trim().to_string()));
+    }
+
+    let mut overview = String::new();
+    let mut todos_body = String::new();
+    let mut notes = String::new();
+
+    for (key, body) in sections {
+        match key {
+            "overview" => {
+                if !is_placeholder(&body) && !body.is_empty() {
+                    if overview.is_empty() { overview = body; }
+                    else { overview.push_str("\n\n"); overview.push_str(&body); }
+                }
+            }
+            "todos" => {
+                if todos_body.is_empty() { todos_body = body; }
+                else { todos_body.push('\n'); todos_body.push_str(&body); }
+            }
+            _ => {
+                if !is_placeholder(&body) && !body.is_empty() {
+                    if notes.is_empty() { notes = body; }
+                    else { notes.push_str("\n\n"); notes.push_str(&body); }
+                }
+            }
+        }
+    }
+
+    HomeData { overview, todos: parse_todos(&todos_body), notes, last_modified: 0 }
+}
+
+pub fn home_to_str(data: &HomeData) -> String {
+    let overview = if data.overview.trim().is_empty() {
+        "*No project description yet. Ask the agent to /scan or write one.*".to_string()
+    } else {
+        data.overview.trim().to_string()
+    };
+    let todos_body = if data.todos.is_empty() {
+        "*No tasks yet. Add one with the + button or ask the agent.*".to_string()
+    } else {
+        data.todos.iter().map(|t| {
+            if t.done { format!("- [x] {}", t.text) } else { format!("- [ ] {}", t.text) }
+        }).collect::<Vec<_>>().join("\n")
+    };
+    let notes = if data.notes.trim().is_empty() {
+        "*No notes yet. The agent will append observations here as you work.*".to_string()
+    } else {
+        data.notes.trim().to_string()
+    };
+    format!("# Overview\n\n{overview}\n\n# Todos\n\n{todos_body}\n\n# Notes\n\n{notes}\n")
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -65,7 +178,7 @@ pub fn is_binary_ext(name: &str) -> bool {
     BINARY_EXTS.contains(&ext.as_str())
 }
 
-fn status_to_code(status: git2::Status) -> String {
+pub(crate) fn status_to_code(status: git2::Status) -> String {
     if status.contains(git2::Status::IGNORED) {
         return String::new();
     }
@@ -237,7 +350,7 @@ pub fn ensure_home_md(app: tauri::AppHandle, workspace_path: String) -> Result<(
     let dir = workspace_data_dir(&app, &workspace_path)?;
     let home_path = dir.join("home.md");
     if !home_path.exists() {
-        let template = "# Overview\n\nDescribe your project here.\n\n# Todos\n\n- [ ] Get started\n\n# Notes\n\nAdd notes, links, and observations here.\n";
+        let template = home_to_str(&HomeData { overview: String::new(), todos: vec![], notes: String::new(), last_modified: 0 });
         fs::write(&home_path, template).map_err(|e| e.to_string())?;
     }
     let content = fs::read_to_string(&home_path).map_err(|e| e.to_string())?;
@@ -382,8 +495,6 @@ pub fn apply_diff_patch(path: String, diff_text: String) -> Result<(), String> {
     // but for surgical edits, we can track context lines.
     
     let patch_lines: Vec<&str> = diff_text.lines().collect();
-    let mut new_lines = Vec::new();
-    let mut i = 0;
     
     // This is a simplified "replace all" if the diff matches the whole file,
     // or a hunk-based approach. For the Agent's diff blocks, we'll try 
@@ -572,4 +683,170 @@ fn search_recursive(
         }
     }
     Ok(())
+}
+
+// ── Typed home.md commands ────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn read_home(app: tauri::AppHandle, workspace_path: String) -> Result<HomeData, String> {
+    let dir = workspace_data_dir(&app, &workspace_path)?;
+    let home_path = dir.join("home.md");
+    if !home_path.exists() {
+        let template = home_to_str(&HomeData { overview: String::new(), todos: vec![], notes: String::new(), last_modified: 0 });
+        fs::write(&home_path, &template).map_err(|e| e.to_string())?;
+    }
+    let content = fs::read_to_string(&home_path).map_err(|e| e.to_string())?;
+    let mtime = fs::metadata(&home_path)
+        .and_then(|m| m.modified())
+        .map(|t| t.duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0))
+        .unwrap_or(0);
+    let mut data = home_from_str(&content);
+    data.last_modified = mtime;
+    Ok(data)
+}
+
+#[tauri::command]
+pub fn save_home(app: tauri::AppHandle, workspace_path: String, data: HomeData) -> Result<(), String> {
+    let dir = workspace_data_dir(&app, &workspace_path)?;
+    let home_path = dir.join("home.md");
+    if home_path.exists() && data.last_modified != 0 {
+        let current_mtime = fs::metadata(&home_path)
+            .and_then(|m| m.modified())
+            .map(|t| t.duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0))
+            .unwrap_or(0);
+        if current_mtime != data.last_modified {
+            return Err("home.md was modified externally — re-read before saving".into());
+        }
+    }
+    fs::write(&home_path, home_to_str(&data)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn add_todo_cmd(app: tauri::AppHandle, workspace_path: String, text: String) -> Result<HomeData, String> {
+    let mut data = read_home(app.clone(), workspace_path.clone())?;
+    data.todos.push(TodoItem { text, done: false });
+    save_home(app.clone(), workspace_path.clone(), data)?;
+    read_home(app, workspace_path)
+}
+
+#[tauri::command]
+pub fn toggle_todo(app: tauri::AppHandle, workspace_path: String, index: usize, done: bool) -> Result<HomeData, String> {
+    let mut data = read_home(app.clone(), workspace_path.clone())?;
+    if index >= data.todos.len() {
+        return Err(format!("index {index} out of range (len={})", data.todos.len()));
+    }
+    data.todos[index].done = done;
+    save_home(app.clone(), workspace_path.clone(), data)?;
+    read_home(app, workspace_path)
+}
+
+#[tauri::command]
+pub fn delete_todo(app: tauri::AppHandle, workspace_path: String, index: usize) -> Result<HomeData, String> {
+    let mut data = read_home(app.clone(), workspace_path.clone())?;
+    if index >= data.todos.len() {
+        return Err(format!("index {index} out of range (len={})", data.todos.len()));
+    }
+    data.todos.remove(index);
+    save_home(app.clone(), workspace_path.clone(), data)?;
+    read_home(app, workspace_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── status_to_code unit tests ──
+
+    #[test]
+    fn test_status_added_index() {
+        assert_eq!(status_to_code(git2::Status::INDEX_NEW), "A");
+    }
+
+    #[test]
+    fn test_status_added_wt() {
+        assert_eq!(status_to_code(git2::Status::WT_NEW), "A");
+    }
+
+    #[test]
+    fn test_status_modified_index() {
+        assert_eq!(status_to_code(git2::Status::INDEX_MODIFIED), "M");
+    }
+
+    #[test]
+    fn test_status_modified_wt() {
+        assert_eq!(status_to_code(git2::Status::WT_MODIFIED), "M");
+    }
+
+    #[test]
+    fn test_status_deleted_index() {
+        assert_eq!(status_to_code(git2::Status::INDEX_DELETED), "D");
+    }
+
+    #[test]
+    fn test_status_deleted_wt() {
+        assert_eq!(status_to_code(git2::Status::WT_DELETED), "D");
+    }
+
+    #[test]
+    fn test_status_ignored_wins_over_modified() {
+        let s = git2::Status::IGNORED | git2::Status::INDEX_MODIFIED;
+        assert_eq!(status_to_code(s), "");
+    }
+
+    #[test]
+    fn test_status_clean() {
+        assert_eq!(status_to_code(git2::Status::CURRENT), "");
+    }
+
+    // ── build_status_map smoke test (non-repo dir) ──
+
+    #[test]
+    fn test_build_status_map_non_repo() {
+        let dir = std::env::temp_dir().join("clock_lock_test_non_repo");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (map, ignored) = build_status_map(&dir);
+        assert!(map.is_empty(), "expected empty map for non-repo dir");
+        assert!(ignored.is_empty(), "expected empty ignored set for non-repo dir");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── integration test: detect a modified file ──
+
+    #[test]
+    #[ignore]
+    fn test_build_status_map_detects_modified_file() {
+        use std::io::Write as _;
+
+        let dir = std::env::temp_dir().join(format!(
+            "clock_lock_test_git_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .subsec_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Init repo and commit one file
+        let repo = git2::Repository::init(&dir).unwrap();
+        let file_path = dir.join("hello.txt");
+        std::fs::write(&file_path, b"initial content").unwrap();
+
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new("hello.txt")).unwrap();
+        index.write().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = git2::Signature::now("test", "test@test.com").unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[]).unwrap();
+
+        // Modify file on disk without staging
+        let mut f = std::fs::OpenOptions::new().write(true).open(&file_path).unwrap();
+        f.write_all(b"modified content").unwrap();
+        drop(f);
+
+        let (map, _ignored) = build_status_map(&dir);
+        assert_eq!(map.get("hello.txt").map(|s| s.as_str()), Some("M"), "modified file should be M");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

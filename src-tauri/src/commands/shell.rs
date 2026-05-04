@@ -17,6 +17,10 @@ const SAFE_PREFIXES: &[&str] = &[
     "tree", "df", "du", "ps", "top",
     "cargo --version", "node --version", "python --version",
     "npm list", "cargo metadata",
+    // PowerShell read-only cmdlets (is_safe_readonly lowercases input before matching)
+    "get-content", "select-string", "get-item",
+    "get-childitem", "test-path", "get-location",
+    "resolve-path", "write-output",
 ];
 
 fn is_blacklisted(cmd: &str) -> bool {

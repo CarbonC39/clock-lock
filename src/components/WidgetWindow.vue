@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { marked } from "marked";
 import { Maximize2, SendHorizonal, CheckCircle2, Zap, Heart, Eye } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAgentStore } from "../stores/agentStore";
 import AgentPet from "./AgentPet.vue";
+
+marked.setOptions({ gfm: true, breaks: true });
 
 const emit = defineEmits<{ restore: [] }>();
 
@@ -28,7 +31,9 @@ const statusLine = computed(() => {
       read_file: "READING",
       list_dir: "SCANNING",
       read_home_md: "CHECKING",
-      write_home_md: "SAVING",
+      update_overview: "SAVING",
+      add_todo: "SAVING",
+      append_notes: "SAVING",
       get_git_status: "GIT CHECK",
       run_bash: "SHELL",
     };
@@ -42,19 +47,17 @@ const lastAgentMsg = computed(() => {
   return msg ? msg.content : null;
 });
 
+const lastAgentMsgHtml = computed(() => {
+  if (!lastAgentMsg.value) return "";
+  // Truncate to avoid overflow in the tiny widget screen
+  const text = lastAgentMsg.value.length > 400
+    ? lastAgentMsg.value.slice(0, 400) + "…"
+    : lastAgentMsg.value;
+  return marked.parse(text) as string;
+});
+
 const firstTodo = computed(() => {
-  if (!workspace.homeMdContent) return null;
-  const lines = workspace.homeMdContent.split("\n");
-  let inSection = false;
-  for (const line of lines) {
-    if (/^#\s+(todo|progress)/i.test(line)) { inSection = true; continue; }
-    if (/^#\s+/.test(line)) { inSection = false; continue; }
-    if (inSection) {
-      const m = line.match(/^-\s*\[ \]\s+(.+)/);
-      if (m) return m[1].trim();
-    }
-  }
-  return null;
+  return workspace.homeData?.todos.find(t => !t.done)?.text ?? null;
 });
 
 async function sendQuick(text?: string) {
@@ -98,9 +101,7 @@ function interact() {
 
         <div class="screen-main">
           <!-- Full Agent Response -->
-          <div v-if="lastAgentMsg && showBubble" class="agent-response" @click="showBubble = false">
-            <p>{{ lastAgentMsg }}</p>
-          </div>
+          <div v-if="lastAgentMsg && showBubble" class="agent-response" @click="showBubble = false" v-html="lastAgentMsgHtml"></div>
 
           <!-- Task View -->
           <div v-else class="task-view">
@@ -215,11 +216,20 @@ function interact() {
 .agent-response {
   font-size: 11px;
   color: #111;
-  font-weight: 700;
-  line-height: 1.4;
+  font-weight: 600;
+  line-height: 1.5;
   cursor: pointer;
-  white-space: pre-wrap;
+  word-break: break-word;
 }
+.agent-response :deep(p) { margin: 0 0 4px; }
+.agent-response :deep(p:last-child) { margin-bottom: 0; }
+.agent-response :deep(strong) { font-weight: 800; }
+.agent-response :deep(em) { font-style: italic; }
+.agent-response :deep(ul), .agent-response :deep(ol) { margin: 2px 0 4px 12px; padding: 0; }
+.agent-response :deep(li) { margin-bottom: 1px; }
+.agent-response :deep(code) { font-family: monospace; font-size: 10px; background: rgba(0,0,0,0.08); padding: 0 2px; border-radius: 2px; }
+.agent-response :deep(pre) { display: none; } /* hide code blocks — too large for widget */
+.agent-response :deep(h1), .agent-response :deep(h2), .agent-response :deep(h3) { font-size: 11px; font-weight: 800; margin: 2px 0; }
 
 .task-view { width: 100%; }
 .todo-card { display: flex; flex-direction: column; gap: 2px; position: relative; padding-right: 25px; }

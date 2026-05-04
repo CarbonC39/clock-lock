@@ -37,9 +37,11 @@ async function toggleWidget() {
 
 async function enterWidgetMode() {
   try {
-    const size = await appWindow.outerSize();
-    const pos = await appWindow.outerPosition();
-    const sf = await appWindow.scaleFactor();
+    const [size, pos, sf] = await Promise.all([
+      appWindow.outerSize(),
+      appWindow.outerPosition(),
+      appWindow.scaleFactor(),
+    ]);
     savedState = { x: pos.x, y: pos.y, w: size.width, h: size.height, sf };
 
     const newW = Math.round(WIDGET_W * sf);
@@ -63,8 +65,7 @@ async function enterWidgetMode() {
 
 async function restoreFromWidget() {
   try {
-    const size = await appWindow.outerSize();
-    const pos = await appWindow.outerPosition();
+    const [size, pos] = await Promise.all([appWindow.outerSize(), appWindow.outerPosition()]);
 
     const newW = Math.round(savedState.w);
     const newH = Math.round(savedState.h);

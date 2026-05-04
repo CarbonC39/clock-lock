@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use serde_json::Value;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 #[tauri::command]
 pub async fn invoke_tool(
@@ -36,10 +36,49 @@ pub async fn execute_tool(app: &AppHandle, name: &str, args: &Value) -> Result<S
             search_files(ws, pattern, limit)
         }
         "read_home_md" => {
-            let ws = args["workspace_path"]
-                .as_str()
-                .ok_or("missing workspace_path")?;
-            read_home_md(app, ws).await
+            let ws = args["workspace_path"].as_str().ok_or("missing workspace_path")?;
+            let data = crate::commands::fs::read_home(app.clone(), ws.into())?;
+            let todos = if data.todos.is_empty() {
+                "(none)".to_string()
+            } else {
+                data.todos.iter().map(|t| format!("[{}] {}", if t.done { "x" } else { " " }, t.text)).collect::<Vec<_>>().join("\n")
+            };
+            Ok(format!(
+                "## Overview\n{}\n\n## Todos\n{}\n\n## Notes\n{}",
+                if data.overview.is_empty() { "(empty)" } else { &data.overview },
+                todos,
+                if data.notes.is_empty() { "(empty)" } else { &data.notes },
+            ))
+        }
+        "update_overview" => {
+            let ws = args["workspace_path"].as_str().ok_or("missing workspace_path")?;
+            let text = args["text"].as_str().ok_or("missing text")?;
+            let mut data = crate::commands::fs::read_home(app.clone(), ws.into())?;
+            data.overview = text.to_string();
+            crate::commands::fs::save_home(app.clone(), ws.into(), data)?;
+            let _ = app.emit("home-md-changed", ());
+            Ok("Overview updated.".into())
+        }
+        "add_todo" => {
+            let ws = args["workspace_path"].as_str().ok_or("missing workspace_path")?;
+            let text = args["text"].as_str().ok_or("missing text")?;
+            crate::commands::fs::add_todo_cmd(app.clone(), ws.into(), text.into())?;
+            let _ = app.emit("home-md-changed", ());
+            Ok(format!("Todo added: \"{}\"", text))
+        }
+        "append_notes" => {
+            let ws = args["workspace_path"].as_str().ok_or("missing workspace_path")?;
+            let text = args["text"].as_str().ok_or("missing text")?;
+            let mut data = crate::commands::fs::read_home(app.clone(), ws.into())?;
+            if data.notes.trim().is_empty() {
+                data.notes = text.to_string();
+            } else {
+                data.notes.push_str("\n\n");
+                data.notes.push_str(text);
+            }
+            crate::commands::fs::save_home(app.clone(), ws.into(), data)?;
+            let _ = app.emit("home-md-changed", ());
+            Ok("Notes updated.".into())
         }
         "fetch_context" => {
             let ws = args["workspace_path"]
@@ -51,32 +90,16 @@ pub async fn execute_tool(app: &AppHandle, name: &str, args: &Value) -> Result<S
                 _ => Err(format!("unknown context type: {context_type}")),
             }
         }
-        "write_home_md" => {
-            let ws = args["workspace_path"]
-                .as_str()
-                .ok_or("missing workspace_path")?;
-            let content = args["content"].as_str().ok_or("missing content")?;
-            write_home_md(app, ws, content).await?;
-            Ok("home.md updated successfully".into())
-        }
         "patch_markdown_section" => {
-            let ws = args["workspace_path"]
-                .as_str()
-                .ok_or("missing workspace_path")?;
             let file_name = args["file_name"].as_str().unwrap_or("home.md");
+            if file_name == "home.md" {
+                return Err("home.md uses a structured schema. Use update_overview, add_todo, or append_notes instead.".into());
+            }
+            let ws = args["workspace_path"].as_str().ok_or("missing workspace_path")?;
             let heading = args["heading"].as_str().ok_or("missing heading")?;
             let new_content = args["new_content"].as_str().ok_or("missing new_content")?;
             patch_markdown_section(app, ws, file_name, heading, new_content).await?;
             Ok(format!("Section \"{heading}\" in {file_name} updated successfully."))
-        }
-        "append_section" => {
-            let ws = args["workspace_path"]
-                .as_str()
-                .ok_or("missing workspace_path")?;
-            let heading = args["heading"].as_str().ok_or("missing heading")?;
-            let text = args["text"].as_str().ok_or("missing text")?;
-            append_section(app, ws, heading, text).await?;
-            Ok(format!("Appended to section \"{heading}\""))
         }
         "get_git_status" => {
             let ws = args["workspace_path"]
@@ -224,21 +247,6 @@ fn search_recursive(
     Ok(())
 }
 
-async fn read_home_md(app: &AppHandle, workspace_path: &str) -> Result<String, String> {
-    let (_, content) =
-        crate::commands::fs::ensure_home_md(app.clone(), workspace_path.into())?;
-    Ok(content)
-}
-
-async fn write_home_md(
-    app: &AppHandle,
-    workspace_path: &str,
-    content: &str,
-) -> Result<(), String> {
-    let (path, _) = crate::commands::fs::ensure_home_md(app.clone(), workspace_path.into())?;
-    crate::commands::fs::write_file(path, content.into())
-}
-
 async fn patch_markdown_section(
     app: &AppHandle,
     workspace_path: &str,
@@ -257,40 +265,6 @@ async fn patch_markdown_section(
 
     let updated = crate::commands::fs::patch_markdown_content(&current, heading, new_content);
     std::fs::write(path, updated).map_err(|e| e.to_string())
-}
-
-async fn append_section(
-    app: &AppHandle,
-    workspace_path: &str,
-    heading: &str,
-    text: &str,
-) -> Result<(), String> {
-    let (path, current) =
-        crate::commands::fs::ensure_home_md(app.clone(), workspace_path.into())?;
-    let lines: Vec<&str> = current.lines().collect();
-    let hl = format!("# {}", heading);
-    let mut new_content = String::new();
-    let mut found = false;
-
-    for line in &lines {
-        // Before writing the next heading, flush accumulated text into the previous section
-        if found && line.starts_with('#') && line.trim() != hl.trim() {
-            new_content.push_str(text);
-            new_content.push('\n');
-            found = false;
-        }
-        new_content.push_str(line);
-        new_content.push('\n');
-        if line.trim() == hl.trim() {
-            found = true;
-        }
-    }
-    if found {
-        // Target section was the last one — append at end
-        new_content.push_str(text);
-        new_content.push('\n');
-    }
-    crate::commands::fs::write_file(path, new_content)
 }
 
 async fn search_memory(
