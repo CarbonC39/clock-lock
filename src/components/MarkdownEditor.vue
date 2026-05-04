@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from "vue";
+import { ref, watch } from "vue";
 import { marked } from "marked";
 import { Plus, X, BookOpen, CheckSquare, StickyNote } from "lucide-vue-next";
 import type { HomeData } from "../stores/workspaceStore";
+import MarkdownCodeEditor from "./MarkdownCodeEditor.vue";
 
 marked.setOptions({ gfm: true, breaks: true });
 
@@ -13,11 +14,12 @@ const emit = defineEmits<{ "save-overview": [string]; "save-notes": [string]; "a
 
 const editingOverview = ref(false);
 const overviewDraft = ref("");
+const overviewEditor = ref<{ focus: () => void } | null>(null);
 
 function startEditOverview() {
   overviewDraft.value = props.data.overview;
   editingOverview.value = true;
-  nextTick(() => document.querySelector<HTMLTextAreaElement>(".overview-textarea")?.focus());
+  overviewEditor.value?.focus();
 }
 
 function commitOverview() {
@@ -31,11 +33,12 @@ function commitOverview() {
 
 const editingNotes = ref(false);
 const notesDraft = ref("");
+const notesEditor = ref<{ focus: () => void } | null>(null);
 
 function startEditNotes() {
   notesDraft.value = props.data.notes;
   editingNotes.value = true;
-  nextTick(() => document.querySelector<HTMLTextAreaElement>(".notes-textarea")?.focus());
+  notesEditor.value?.focus();
 }
 
 function commitNotes() {
@@ -53,23 +56,10 @@ const showAddInput = ref(false);
 
 function startEditTask(index: number) {
   editingTask.value = { index, text: props.data.todos[index].text };
-  nextTick(() => document.querySelector<HTMLInputElement>(".task-edit-input")?.focus());
 }
 
 function commitEditTask() {
-  if (!editingTask.value) return;
-  const { index, text } = editingTask.value;
   editingTask.value = null;
-  if (text.trim() && text !== props.data.todos[index].text) {
-    // Delete old + add new at same position approximated by delete then add
-    // Simplest: just emit delete + re-emit — but we don't have an update-todo command.
-    // Use delete + add to simulate in-place edit (order maintained since we push at end).
-    // For now, emit delete; the parent can handle re-add if needed.
-    // Actually: we have no "update_todo" command. Use a workaround: toggle done=false + edit text
-    // The cleanest UX: after delete, the user re-adds. But this is disruptive.
-    // Better: skip emit for now and just visually discard (data binding re-syncs).
-    // TODO: add update_todo Rust command in follow-up.
-  }
 }
 
 function submitNewTodo() {
@@ -87,7 +77,6 @@ function onNewTodoKeydown(e: KeyboardEvent) {
 
 function showAdd() {
   showAddInput.value = true;
-  nextTick(() => document.querySelector<HTMLInputElement>(".new-todo-input")?.focus());
 }
 
 // ── Derived ──────────────────────────────────────────────────
@@ -97,7 +86,6 @@ function renderMd(src: string): string {
   return marked.parse(src) as string;
 }
 
-// Keep draft in sync if external data changes (e.g. agent modifies overview while editing)
 watch(() => props.data.overview, (v) => { if (!editingOverview.value) overviewDraft.value = v; });
 watch(() => props.data.notes, (v) => { if (!editingNotes.value) notesDraft.value = v; });
 </script>
@@ -115,25 +103,23 @@ watch(() => props.data.notes, (v) => { if (!editingNotes.value) notesDraft.value
         </div>
 
         <div v-if="editingOverview" class="section-edit">
-          <textarea
+          <MarkdownCodeEditor
+            ref="overviewEditor"
             v-model="overviewDraft"
-            class="overview-textarea section-textarea"
-            rows="4"
             placeholder="Describe your project…"
             @blur="commitOverview"
-            @keydown.ctrl.enter="commitOverview"
-            @keydown.escape="editingOverview = false"
+            @commit="commitOverview"
           />
-          <p class="edit-hint">Ctrl+Enter to save · Esc to cancel · blur auto-saves</p>
+          <p class="edit-hint">Ctrl+Enter or Esc to save · blur auto-saves</p>
         </div>
         <div
           v-else-if="data.overview.trim()"
           class="md-rendered overview-rendered"
-          @click="startEditOverview"
+          @dblclick="startEditOverview"
           v-html="renderMd(data.overview)"
         />
-        <p v-else class="placeholder-text" @click="startEditOverview">
-          No project description yet. Click to write one, or ask the agent to <code>/scan</code>.
+        <p v-else class="placeholder-text" @dblclick="startEditOverview">
+          No project description yet. Double-click to write one, or ask the agent to <code>/scan</code>.
         </p>
       </section>
 
@@ -209,25 +195,23 @@ watch(() => props.data.notes, (v) => { if (!editingNotes.value) notesDraft.value
         </div>
 
         <div v-if="editingNotes" class="section-edit">
-          <textarea
+          <MarkdownCodeEditor
+            ref="notesEditor"
             v-model="notesDraft"
-            class="notes-textarea section-textarea"
-            rows="5"
             placeholder="Scratch pad — progress, links, observations…"
             @blur="commitNotes"
-            @keydown.ctrl.enter="commitNotes"
-            @keydown.escape="editingNotes = false"
+            @commit="commitNotes"
           />
-          <p class="edit-hint">Ctrl+Enter to save · Esc to cancel · blur auto-saves</p>
+          <p class="edit-hint">Ctrl+Enter or Esc to save · blur auto-saves</p>
         </div>
         <div
           v-else-if="data.notes.trim()"
           class="md-rendered notes-rendered"
-          @click="startEditNotes"
+          @dblclick="startEditNotes"
           v-html="renderMd(data.notes)"
         />
-        <p v-else class="placeholder-text" @click="startEditNotes">
-          No notes yet. The agent appends observations here as you work. Click to write your own.
+        <p v-else class="placeholder-text" @dblclick="startEditNotes">
+          No notes yet. The agent appends observations here as you work. Double-click to write your own.
         </p>
       </section>
 
@@ -304,16 +288,16 @@ watch(() => props.data.notes, (v) => { if (!editingNotes.value) notesDraft.value
   border-radius: var(--radius-sm);
   padding: 2px 4px;
   margin: -2px -4px;
-  transition: background-color var(--transition);
 }
-.md-rendered:hover { background: color-mix(in srgb, var(--color-accent-blue) 3%, transparent); }
 
 .md-rendered :deep(p) { margin: 0 0 0.5em; }
 .md-rendered :deep(p:last-child) { margin-bottom: 0; }
-.md-rendered :deep(h2) { font-size: 1em; font-weight: 700; color: var(--color-text-primary); margin: 0.8em 0 0.3em; }
-.md-rendered :deep(h3) { font-size: 0.95em; font-weight: 600; color: var(--color-text-secondary); margin: 0.6em 0 0.2em; }
+.md-rendered :deep(h1) { font-size: 1.15em; font-weight: 700; color: var(--color-accent-blue); margin: 0.8em 0 0.35em; }
+.md-rendered :deep(h2) { font-size: 1.05em; font-weight: 700; color: var(--color-accent-blue); margin: 0.8em 0 0.3em; }
+.md-rendered :deep(h3) { font-size: 1em; font-weight: 600; color: var(--color-accent-purple); margin: 0.6em 0 0.25em; }
+.md-rendered :deep(h4) { font-size: 0.95em; font-weight: 600; color: var(--color-accent-teal); margin: 0.5em 0 0.2em; }
 .md-rendered :deep(ul), .md-rendered :deep(ol) { padding-left: 1.4em; margin: 0 0 0.5em; }
-.md-rendered :deep(li) { margin-bottom: 0.15em; }
+.md-rendered :deep(li) { margin-bottom: 0.15em; color: var(--color-text-secondary); }
 .md-rendered :deep(code) {
   font-family: var(--font-mono);
   font-size: 0.85em;
@@ -484,24 +468,6 @@ watch(() => props.data.notes, (v) => { if (!editingNotes.value) notesDraft.value
 
 /* ── Body edit mode ── */
 .section-edit { margin-top: 4px; }
-
-.section-textarea {
-  width: 100%;
-  padding: 10px 14px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-primary);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.65;
-  outline: none;
-  resize: vertical;
-  min-height: 80px;
-  transition: border-color var(--transition);
-  box-sizing: border-box;
-}
-.section-textarea:focus { border-color: var(--color-accent-blue); }
 
 .edit-hint {
   font-size: 11px;

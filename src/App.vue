@@ -54,6 +54,7 @@ async function enterWidgetMode() {
     widgetMode.value = true;
     await nextTick();
     await appWindow.setAlwaysOnTop(true);
+    await appWindow.setSkipTaskbar(true);
     await appWindow.setMaximizable(false);
     await appWindow.setMinSize(new LogicalSize(WIDGET_W, WIDGET_H));
     await appWindow.setSize(new PhysicalSize(newW, newH));
@@ -75,6 +76,7 @@ async function restoreFromWidget() {
 
     // Resize first so RouterView renders into the correct large window (no squish flash)
     await appWindow.setAlwaysOnTop(false);
+    await appWindow.setSkipTaskbar(false);
     await appWindow.setMaximizable(true);
     await appWindow.setSize(new PhysicalSize(newW, newH));
     await appWindow.setPosition(new PhysicalPosition(newX, newY));

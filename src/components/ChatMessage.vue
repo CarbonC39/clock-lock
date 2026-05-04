@@ -3,7 +3,9 @@ import { ref, computed } from "vue";
 import { marked } from "marked";
 import { Wrench, ChevronDown, ChevronRight, Brain, ListTodo } from "lucide-vue-next";
 import type { ChatMessage } from "../stores/agentStore";
+import { useAgentStore } from "../stores/agentStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useSupervisionStore } from "../stores/supervisionStore";
 import BashBlock from "./BashBlock.vue";
 import DiffView from "./DiffView.vue";
 
@@ -11,6 +13,20 @@ marked.setOptions({ gfm: true, breaks: true });
 
 const props = defineProps<{ message: ChatMessage }>();
 const workspace = useWorkspaceStore();
+const agent = useAgentStore();
+const sv = useSupervisionStore();
+
+function formatIdleTime(minutes: number): string {
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  return rem === 0 ? `${hours}h ago` : `${hours}h ${rem}m ago`;
+}
+
+function handleSnooze(id: string) {
+  sv.setSnooze(3_600_000);
+  agent.snoozeCheckin(id);
+}
 
 const toolExpanded = ref(false);
 const thoughtExpanded = ref(false);
@@ -89,8 +105,34 @@ function renderMd(src: string): string {
 </script>
 
 <template>
+  <!-- Check-in card -->
+  <div v-if="message.role === 'checkin'" class="msg-checkin">
+    <div class="checkin-card">
+      <div class="checkin-header">
+        <span class="checkin-kaomoji">( ˘ω˘) zzz</span>
+        <span class="checkin-label">Clock Lock</span>
+        <span class="checkin-badge">{{ formatIdleTime(message.checkinMeta!.idleMinutes) }}</span>
+      </div>
+      <div class="checkin-body">
+        <p class="checkin-text">{{ message.content }}</p>
+        <div v-if="message.checkinMeta!.topTodo" class="checkin-todo-pill">
+          <span class="pill-label">still on your list</span>
+          <span class="pill-text">{{ message.checkinMeta!.topTodo }}</span>
+        </div>
+      </div>
+      <div class="checkin-footer">
+        <template v-if="!message.checkinMeta!.snoozed">
+          <button class="checkin-btn btn-primary" @click="agent.sendMessage(`I'm back!`)">I'm here</button>
+          <button class="checkin-btn btn-secondary" @click="agent.sendMessage('/remind')">Remind me</button>
+          <button class="checkin-btn btn-ghost" @click="handleSnooze(message.id)">Snooze 1h</button>
+        </template>
+        <span v-else class="checkin-snoozed">Snoozed · see you in an hour</span>
+      </div>
+    </div>
+  </div>
+
   <!-- System note -->
-  <div v-if="message.role === 'system-note'" class="msg-note">
+  <div v-else-if="message.role === 'system-note'" class="msg-note">
     {{ message.content }}
   </div>
 
@@ -266,18 +308,20 @@ function renderMd(src: string): string {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
-  font-size: 11px;
+  padding: 5px 10px;
+  font-size: 11.5px;
   font-weight: 600;
-  background: color-mix(in srgb, var(--color-accent-purple) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 18%, transparent);
+  background: color-mix(in srgb, var(--color-accent-purple) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 22%, transparent);
   border-radius: var(--radius-sm);
   color: var(--color-accent-purple);
   cursor: pointer;
   transition: all var(--transition);
+  width: 100%;
+  text-align: left;
 }
 .tool-toggle:hover {
-  background: color-mix(in srgb, var(--color-accent-purple) 14%, transparent);
+  background: color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
 }
 
 .tool-result {
@@ -328,30 +372,33 @@ function renderMd(src: string): string {
 /* Thought monologue */
 .thought-monologue {
   margin-bottom: 8px;
-  opacity: 0.7;
+  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 20%, var(--color-border));
+  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
 
 .thought-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 0;
+  padding: 5px 8px;
   font-size: 10.5px;
   font-weight: 600;
-  color: var(--color-text-muted);
-  background: none;
+  color: var(--color-accent-purple);
+  background: color-mix(in srgb, var(--color-accent-purple) 6%, transparent);
   border: none;
   cursor: pointer;
-  transition: opacity var(--transition);
+  transition: background-color var(--transition);
+  width: 100%;
+  text-align: left;
 }
 
-.thought-header:hover { opacity: 1; }
+.thought-header:hover { background: color-mix(in srgb, var(--color-accent-purple) 12%, transparent); }
 
 .thought-list {
-  padding: 4px 8px 8px;
-  background: color-mix(in srgb, var(--color-text-muted) 5%, transparent);
-  border-left: 2px solid color-mix(in srgb, var(--color-text-muted) 20%, transparent);
-  border-radius: 0 4px 4px 0;
+  padding: 6px 10px 8px;
+  background: color-mix(in srgb, var(--color-accent-purple) 4%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--color-accent-purple) 14%, var(--color-border));
 }
 
 .thought-item {
@@ -412,6 +459,143 @@ function renderMd(src: string): string {
 @keyframes blink {
   0%, 100% { opacity: 0.25; }
   50%       { opacity: 1; }
+}
+
+/* ── Check-in card ── */
+@keyframes checkin-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.msg-checkin { display: flex; justify-content: flex-start; }
+
+.checkin-card {
+  background: color-mix(in srgb, var(--color-accent-purple) 8%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 28%, var(--color-border));
+  border-radius: 12px;
+  overflow: hidden;
+  max-width: 340px;
+  box-shadow: var(--shadow-sm);
+  animation: checkin-in 0.3s ease;
+}
+
+.checkin-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--color-accent-purple) 14%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-accent-purple) 20%, var(--color-border));
+}
+
+.checkin-kaomoji {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-accent-purple);
+  flex-shrink: 0;
+}
+
+.checkin-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-accent-purple);
+  flex: 1;
+}
+
+.checkin-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  background: color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 28%, transparent);
+  border-radius: 99px;
+  color: var(--color-accent-purple);
+  white-space: nowrap;
+}
+
+.checkin-body {
+  padding: 10px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkin-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.checkin-todo-pill {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 9px;
+  background: color-mix(in srgb, var(--color-accent-purple) 6%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 16%, var(--color-border));
+  border-radius: 6px;
+}
+
+.pill-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pill-text {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checkin-footer {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid color-mix(in srgb, var(--color-accent-purple) 12%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-purple) 4%, transparent);
+}
+
+.checkin-btn {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: opacity var(--transition), background var(--transition);
+  white-space: nowrap;
+}
+.checkin-btn:hover { opacity: 0.85; }
+
+.btn-primary   { background: var(--color-accent-purple); color: #fff; }
+.btn-secondary {
+  background: color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 30%, transparent);
+  color: var(--color-accent-purple);
+}
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.btn-ghost:hover { background: var(--color-surface-hover); }
+
+.checkin-snoozed {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  font-style: italic;
+  padding: 4px 2px;
 }
 </style>
 

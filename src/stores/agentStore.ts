@@ -8,9 +8,15 @@ import { useSupervisionStore } from "./supervisionStore";
 
 export type AgentState = "idle" | "thinking" | "happy" | "sleepy" | "excited";
 
+export interface CheckinMeta {
+  idleMinutes: number;
+  topTodo: string | null;
+  snoozed: boolean;
+}
+
 export interface ChatMessage {
   id: string;
-  role: "user" | "assistant" | "system" | "system-note" | "tool";
+  role: "user" | "assistant" | "system" | "system-note" | "tool" | "checkin";
   content: string;
   timestamp: number;
   isStreaming?: boolean;
@@ -18,6 +24,7 @@ export interface ChatMessage {
   tool_calls?: any[];
   tool_call_id?: string;
   name?: string;
+  checkinMeta?: CheckinMeta;
 }
 
 // ── Native Tools Schema ──
@@ -563,6 +570,19 @@ Edits → \`\`\`diff\`\`\` blocks. Mutating shell commands → \`\`\`bash\`\`\` 
 
   function stopGeneration() { cancelRequested = true; }
   function pushNote(text: string) { messages.value.push({ id: crypto.randomUUID(), role: "system-note", content: text, timestamp: Date.now() }); }
+  function pushCheckin(text: string, meta: { idleMinutes: number; topTodo: string | null }) {
+    messages.value.push({
+      id: crypto.randomUUID(),
+      role: "checkin",
+      content: text,
+      timestamp: Date.now(),
+      checkinMeta: { idleMinutes: meta.idleMinutes, topTodo: meta.topTodo, snoozed: false },
+    });
+  }
+  function snoozeCheckin(id: string) {
+    const msg = messages.value.find(m => m.id === id);
+    if (msg?.checkinMeta) msg.checkinMeta.snoozed = true;
+  }
   function setState(s: AgentState) { state.value = s; }
   function clear() {
     unlistenFsChange?.();
@@ -575,5 +595,5 @@ Edits → \`\`\`diff\`\`\` blocks. Mutating shell commands → \`\`\`bash\`\`\` 
     isBusy.value = false;
   }
 
-  return { messages, state, isBusy, currentTool, sendMessage, stopGeneration, pushNote, setState, clear, loadConversation };
+  return { messages, state, isBusy, currentTool, sendMessage, stopGeneration, pushNote, pushCheckin, snoozeCheckin, setState, clear, loadConversation };
 });

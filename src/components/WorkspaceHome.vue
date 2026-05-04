@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { Home, FolderOpen } from "lucide-vue-next";
+import { openPath } from "@tauri-apps/plugin-opener";
+import { Home, FolderOpen, ExternalLink } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useUiStore } from "../stores/uiStore";
 import { highlightCode } from "../composables/useHighlighter";
@@ -62,6 +63,16 @@ watch(
     }
   }
 );
+
+async function openInEditor() {
+  if (!workspace.path) return;
+  try {
+    const [homePath] = await invoke<[string, string]>("ensure_home_md", { workspacePath: workspace.path });
+    openPath(homePath).catch(console.warn);
+  } catch (e) {
+    console.warn("openInEditor failed:", e);
+  }
+}
 
 async function saveAnnotation() {
   if (!workspace.path || !workspace.selectedFilePath) return;
@@ -138,6 +149,12 @@ async function saveAnnotation() {
 
     <!-- ── Home markdown ── -->
     <template v-else-if="workspace.path && workspace.homeData">
+      <div class="home-toolbar">
+        <span class="home-label">home.md</span>
+        <button class="open-editor-btn" title="Open in system editor" @click="openInEditor()">
+          <ExternalLink :size="12" />
+        </button>
+      </div>
       <MarkdownEditor
         :key="workspace.path"
         :data="workspace.homeData"
@@ -204,6 +221,43 @@ async function saveAnnotation() {
   font-size: 12px;
   color: var(--color-text-muted);
   margin: 0;
+}
+
+/* ── Home toolbar ── */
+.home-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 5px 16px 4px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.home-label {
+  flex: 1;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.open-editor-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color var(--transition), background-color var(--transition);
+  flex-shrink: 0;
+}
+.open-editor-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-accent-blue);
 }
 
 /* ── File header ── */
