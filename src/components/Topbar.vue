@@ -5,43 +5,32 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSupervisionStore } from "../stores/supervisionStore";
-import { useAgentStore } from "../stores/agentStore";
 import { useUiStore } from "../stores/uiStore";
-import AgentPet from "./AgentPet.vue";
 
 const workspace = useWorkspaceStore();
 const settings = useSettingsStore();
 const sv = useSupervisionStore();
-const agent = useAgentStore();
 const ui = useUiStore();
 const toggleWidget = inject<() => Promise<void>>("toggleWidget");
 
 const win = getCurrentWindow();
 const isMaximized = ref(false);
-const liveTime = ref("");
 let unlistenResize: (() => void) | null = null;
-let clockTimer: ReturnType<typeof setInterval> | null = null;
 
-function updateClock() {
-  liveTime.value = new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+function syncMaximized(v: boolean) {
+  isMaximized.value = v;
+  document.body.classList.toggle("is-maximized", v);
 }
 
 onMounted(async () => {
-  isMaximized.value = await win.isMaximized();
+  syncMaximized(await win.isMaximized());
   unlistenResize = await win.onResized(async () => {
-    isMaximized.value = await win.isMaximized();
+    syncMaximized(await win.isMaximized());
   });
-  updateClock();
-  clockTimer = setInterval(updateClock, 15_000);
 });
 
 onUnmounted(() => {
   unlistenResize?.();
-  if (clockTimer) clearInterval(clockTimer);
 });
 
 async function minimize() { await win.minimize(); }
@@ -63,7 +52,7 @@ async function close() {
     <!-- Left: brand + workspace -->
     <div class="topbar-left">
       <div class="brand">
-        <span class="brand-dot" />
+        <img src="/app-icon.svg" class="brand-logo" alt="Clock Lock" />
         <span class="brand-name">Clock&nbsp;Lock</span>
       </div>
 
@@ -75,12 +64,7 @@ async function close() {
       </button>
     </div>
 
-    <!-- Center: the presiding face (click-through so the center stays draggable) -->
-    <div class="topbar-face">
-      <AgentPet :state="agent.state" size="xl" />
-    </div>
-
-    <!-- Right: focus toggle, clock, controls -->
+    <!-- Right: focus, theme, controls -->
     <div class="topbar-right">
       <label class="dnd-switch" :class="{ active: sv.dnd }" title="Focus mode — silences check-ins">
         <input
@@ -92,8 +76,6 @@ async function close() {
         <span class="dnd-track"><span class="dnd-thumb" /></span>
         <span class="dnd-label">FOCUS</span>
       </label>
-
-      <span class="live-clock">{{ liveTime }}</span>
 
       <div class="divider-v" />
 
@@ -118,17 +100,17 @@ async function close() {
         <Settings :size="14" />
       </button>
 
-      <div class="win-divider" />
-
-      <button class="win-btn win-min" title="Minimize" @click="minimize">
-        <Minus :size="11" />
-      </button>
-      <button class="win-btn win-max" :title="isMaximized ? 'Restore' : 'Maximize'" @click="toggleMaximize">
-        <Square :size="10" />
-      </button>
-      <button class="win-btn win-close" title="Close" @click="close">
-        <X :size="11" />
-      </button>
+      <div class="win-group">
+        <button class="win-btn" title="Minimize" @click="minimize">
+          <Minus :size="14" />
+        </button>
+        <button class="win-btn" :title="isMaximized ? 'Restore' : 'Maximize'" @click="toggleMaximize">
+          <Square :size="11" />
+        </button>
+        <button class="win-btn win-close" title="Close" @click="close">
+          <X :size="14" />
+        </button>
+      </div>
     </div>
   </header>
 </template>
@@ -139,9 +121,8 @@ async function close() {
   align-items: center;
   justify-content: space-between;
   height: 46px;
-  padding: 0 0 0 12px;
-  background-color: var(--color-topbar-bg);
-  border-bottom: 1px solid var(--color-topbar-border);
+  padding: 0 8px 0 12px;
+  background-color: var(--color-bg);
   flex-shrink: 0;
   position: relative;
   user-select: none;
@@ -153,22 +134,6 @@ async function close() {
   z-index: 0;
 }
 
-.topbar::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--color-accent-blue), var(--color-accent-purple), var(--color-accent-pink));
-  opacity: 0.55;
-  transition: background 0.3s ease, opacity 0.3s ease;
-}
-.topbar.dnd-active::after {
-  background: var(--color-accent-red);
-  opacity: 0.85;
-}
-
 .topbar-left,
 .topbar-right {
   display: flex;
@@ -178,36 +143,21 @@ async function close() {
   position: relative;
   z-index: 1;
 }
-.topbar-right { padding-right: 0; }
-
-/* ── Centered face ── */
-.topbar-face {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  z-index: 1;
-}
 
 /* ── Brand ── */
 .brand {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
 }
 
-.brand-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-accent-blue), var(--color-accent-pink));
+.brand-logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
   flex-shrink: 0;
-  box-shadow: 0 0 6px color-mix(in srgb, var(--color-accent-blue) 50%, transparent);
+  -webkit-user-drag: none;
+  user-select: none;
 }
 
 .brand-name {
@@ -239,7 +189,7 @@ async function close() {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background-color var(--transition), color var(--transition);
-  max-width: 200px;
+  max-width: 220px;
   overflow: hidden;
 }
 .open-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -280,7 +230,7 @@ async function close() {
   box-shadow: var(--shadow-sm);
   transition: transform var(--transition), background var(--transition);
 }
-.dnd-switch.active .dnd-track { background: var(--color-accent-red); }
+.dnd-switch.active .dnd-track { background: var(--color-accent-pink); }
 .dnd-switch.active .dnd-thumb { transform: translateX(12px); background: #fff; }
 
 .dnd-label {
@@ -291,26 +241,15 @@ async function close() {
   color: var(--color-text-muted);
   transition: color var(--transition);
 }
-.dnd-switch.active .dnd-label { color: var(--color-accent-red); }
-
-/* ── Live clock ── */
-.live-clock {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  letter-spacing: 0.04em;
-  padding: 0 4px;
-  font-variant-numeric: tabular-nums;
-}
+.dnd-switch.active .dnd-label { color: var(--color-accent-pink); }
 
 /* ── App icon buttons ── */
 .icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border: none;
   background: none;
   color: var(--color-text-muted);
@@ -319,29 +258,28 @@ async function close() {
   transition: background-color var(--transition), color var(--transition);
 }
 .icon-btn:hover { color: var(--color-text-primary); background: var(--color-surface-hover); }
-.icon-btn.active { color: var(--color-accent-blue); background: color-mix(in srgb, var(--color-accent-blue) 12%, transparent); }
+.icon-btn.active { color: var(--color-accent-blue); background: color-mix(in srgb, var(--color-accent-blue) 14%, transparent); }
 
-.win-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--color-border);
-  margin: 0 4px 0 2px;
+/* ── Window controls ── */
+.win-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
 }
-
-/* ── Window control buttons ── */
 .win-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 46px;
+  width: 30px;
+  height: 30px;
   border: none;
   background: none;
   color: var(--color-text-muted);
   cursor: pointer;
+  border-radius: var(--radius-sm);
   transition: background-color var(--transition), color var(--transition);
-  border-radius: 0;
 }
 .win-btn:hover { background-color: var(--color-surface-hover); color: var(--color-text-primary); }
-.win-close:hover { background-color: #c0392b; color: #fff; }
+.win-close:hover { background-color: var(--color-accent-red); color: #fff; }
 </style>

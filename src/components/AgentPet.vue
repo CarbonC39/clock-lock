@@ -76,8 +76,8 @@ const sizeClass = computed(() => `pet-${props.size ?? "md"}`);
 }
 
 .pet-sm  { font-size: 12px; }
-.pet-md  { font-size: 20px; line-height: 1; }
-.pet-lg  { font-size: 36px; }
+.pet-md  { font-size: 22px; line-height: 1; }
+.pet-lg  { font-size: 50px; line-height: 1.1; }
 .pet-xl  { font-size: 22px; line-height: 1; letter-spacing: 0.02em; }
 
 /* ── Per-state colors ── */

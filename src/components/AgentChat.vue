@@ -53,7 +53,7 @@ onMounted(() => {
   <div class="agent-chat">
     <!-- ── Header ── -->
     <div class="panel-header">
-      <AgentPet :state="agent.state" size="sm" />
+      <AgentPet :state="agent.state" size="md" class="header-pet" />
       <span class="panel-title">Agent</span>
       <div class="header-actions">
         <button
@@ -175,12 +175,14 @@ onMounted(() => {
 .panel-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding: 0 12px;
+  gap: 10px;
+  height: 44px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
+
+.header-pet { flex-shrink: 0; }
 
 .panel-title {
   font-size: 11px;

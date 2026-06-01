@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, nextTick } from "vue";
 import { Plus, X, CheckSquare } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 
@@ -11,6 +11,7 @@ const doneCount = computed(() => todos.value.filter(t => t.done).length);
 const editing = ref<{ index: number; text: string } | null>(null);
 const newText = ref("");
 const showAdd = ref(false);
+const newInputEl = ref<HTMLInputElement | null>(null);
 
 function startEdit(i: number) {
   editing.value = { index: i, text: todos.value[i].text };
@@ -18,16 +19,29 @@ function startEdit(i: number) {
 function commitEdit() {
   editing.value = null;
 }
+async function toggleAdd() {
+  // Clicking the + button is also the way to dismiss an empty/abandoned input.
+  if (showAdd.value) { closeAdd(); return; }
+  showAdd.value = true;
+  newText.value = "";
+  await nextTick();
+  newInputEl.value?.focus();
+}
+function closeAdd() {
+  showAdd.value = false;
+  newText.value = "";
+}
 function submitNew() {
   const text = newText.value.trim();
-  if (!text) { showAdd.value = false; return; }
-  newText.value = "";
-  showAdd.value = false;
+  if (!text) { closeAdd(); return; }
   workspace.addTodo(text);
+  // Stay open so several tasks can be added in a row; just clear + refocus.
+  newText.value = "";
+  nextTick(() => newInputEl.value?.focus());
 }
 function onNewKeydown(e: KeyboardEvent) {
   if (e.key === "Enter") { e.preventDefault(); submitNew(); }
-  if (e.key === "Escape") { showAdd.value = false; newText.value = ""; }
+  if (e.key === "Escape") { e.preventDefault(); closeAdd(); }
 }
 </script>
 
@@ -37,23 +51,17 @@ function onNewKeydown(e: KeyboardEvent) {
       <CheckSquare :size="13" class="head-icon" />
       <span class="head-title">Todos</span>
       <span v-if="todos.length" class="head-count">{{ doneCount }}/{{ todos.length }}</span>
-      <button class="add-btn" title="Add task" @click="showAdd = true; newText = ''">
+      <button
+        class="add-btn"
+        :class="{ active: showAdd }"
+        :title="showAdd ? 'Close' : 'Add task'"
+        @click="toggleAdd"
+      >
         <Plus :size="14" />
       </button>
     </div>
 
     <div class="card-body">
-      <div v-if="showAdd" class="new-row">
-        <input
-          v-model="newText"
-          class="new-input"
-          placeholder="New task…"
-          autofocus
-          @keydown="onNewKeydown"
-          @blur="submitNew"
-        />
-      </div>
-
       <div
         v-for="(todo, i) in todos"
         :key="i"
@@ -87,6 +95,21 @@ function onNewKeydown(e: KeyboardEvent) {
       <p v-if="!todos.length && !showAdd" class="empty-hint">
         No tasks yet. Hit <span class="kbd">+</span> or ask the agent.
       </p>
+
+      <!-- New-task input lives at the bottom — closest to where you add -->
+      <div v-if="showAdd" class="new-row">
+        <input
+          ref="newInputEl"
+          v-model="newText"
+          class="new-input"
+          placeholder="New task… (Enter to add, Esc to close)"
+          @keydown="onNewKeydown"
+          @blur="submitNew"
+        />
+        <button class="new-close" title="Close" @mousedown.prevent="closeAdd">
+          <X :size="13" />
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -141,6 +164,11 @@ function onNewKeydown(e: KeyboardEvent) {
   transition: background-color var(--transition), color var(--transition);
 }
 .add-btn:hover { background: var(--color-surface-hover); color: var(--color-accent-teal); }
+.add-btn.active {
+  background: color-mix(in srgb, var(--color-accent-teal) 14%, transparent);
+  color: var(--color-accent-teal);
+  transform: rotate(45deg);
+}
 
 .card-body {
   flex: 1;
@@ -212,7 +240,29 @@ function onNewKeydown(e: KeyboardEvent) {
   min-width: 0;
   box-sizing: border-box;
 }
-.new-row { padding: 2px 5px 4px; }
+.new-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 5px 2px;
+  margin-top: 2px;
+}
+.new-row .new-input { flex: 1; }
+.new-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition);
+}
+.new-close:hover { background: color-mix(in srgb, var(--color-accent-red) 12%, transparent); color: var(--color-accent-red); }
 
 .task-remove {
   display: flex;

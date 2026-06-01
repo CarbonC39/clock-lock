@@ -115,15 +115,31 @@ body {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
-  background-color: var(--color-bg);
+  background: transparent;
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Rounded window. Corners outside the radius are transparent (needs a
+   compositor — Windows/macOS); the inner app fills with the theme bg. */
+#app {
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-bg);
   transition: background-color 0.3s ease;
 }
 
-body.is-widget {
-  background-color: transparent !important;
+/* Square off when maximized so there are no gaps at the screen corners. */
+body.is-maximized #app { border-radius: 0; }
+
+/* Widget mode: fill every pixel with the device's base gradient so the
+   rounded-corner gaps never fall back to black on systems without a
+   compositor (the Linux dev sandbox). The rounded device draws on top. */
+body.is-widget #app {
+  border-radius: 0;
+  background: linear-gradient(145deg, #ddd6fe, #fbcfe8);
 }
+body.is-widget { background: linear-gradient(145deg, #ddd6fe, #fbcfe8) !important; }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

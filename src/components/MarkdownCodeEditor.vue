@@ -45,7 +45,7 @@ const cmTheme = EditorView.theme({
     fontSize: "13px",
     lineHeight: "1.65",
     padding: "10px 14px",
-    minHeight: "140px",
+    minHeight: "60px",
     caretColor: "var(--color-accent-blue)",
   },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--color-accent-blue)" },

@@ -104,7 +104,7 @@ async function saveAnnotation() {
 </script>
 
 <template>
-  <Transition name="drawer">
+  <Transition name="drawer" :duration="{ enter: 300, leave: 240 }">
     <div v-if="ui.filesOpen" class="drawer-root">
       <div class="backdrop" @click="close" />
 
@@ -208,8 +208,7 @@ async function saveAnnotation() {
 .backdrop {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--color-bg) 40%, rgba(0, 0, 0, 0.35));
-  backdrop-filter: blur(1.5px);
+  background: color-mix(in srgb, var(--color-bg) 35%, rgba(0, 0, 0, 0.38));
 }
 
 .drawer {
@@ -446,13 +445,13 @@ async function saveAnnotation() {
 .btn-save:hover { opacity: 0.85; }
 
 /* ── Slide transition ── */
-.drawer-enter-active .drawer,
-.drawer-leave-active .drawer { transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+.drawer-enter-active .drawer { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.drawer-leave-active .drawer { transition: transform 0.24s cubic-bezier(0.4, 0, 1, 1); }
 .drawer-enter-from .drawer,
-.drawer-leave-to .drawer { transform: translateX(-100%); }
+.drawer-leave-to .drawer { transform: translateX(-101%); }
 
-.drawer-enter-active .backdrop,
-.drawer-leave-active .backdrop { transition: opacity 0.22s ease; }
+.drawer-enter-active .backdrop { transition: opacity 0.3s ease; }
+.drawer-leave-active .backdrop { transition: opacity 0.24s ease; }
 .drawer-enter-from .backdrop,
 .drawer-leave-to .backdrop { opacity: 0; }
 </style>

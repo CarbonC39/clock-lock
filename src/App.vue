@@ -46,12 +46,14 @@ async function enterWidgetMode() {
 
     const newW = Math.round(WIDGET_W * sf);
     const newH = Math.round(WIDGET_H * sf);
-    // Shrink in place: keep the window's CENTER fixed so the widget collapses
-    // toward where the window already is (anchored on position, not a corner).
-    const newX = Math.round(pos.x + (size.width - newW) / 2);
-    const newY = Math.round(pos.y + (size.height - newH) / 2);
 
-    // Configure window flags up front (no visual size change yet)
+    // Pivot on the window's CENTER: the widget lands centered over where the big
+    // window was, instead of snapping to its top-left corner.
+    const targetX = Math.round(pos.x + (size.width - newW) / 2);
+    const targetY = Math.round(pos.y + (size.height - newH) / 2);
+
+    if (await appWindow.isMaximized()) await appWindow.unmaximize();
+
     await appWindow.setMinSize(new LogicalSize(WIDGET_W, WIDGET_H));
     await Promise.all([
       appWindow.setAlwaysOnTop(true),
@@ -59,11 +61,15 @@ async function enterWidgetMode() {
       appWindow.setMaximizable(false),
     ]);
 
-    // Swap to the centered widget view, then collapse the window around it.
+    // Order matters: shrink FIRST (anchored at the old top-left, so the window is
+    // now small but still fully inside the old rect), THEN move to the centered
+    // target. Because the window is already small when we reposition, the target
+    // is guaranteed inside the screen and the WM can't clamp it off-screen.
+    // Resize before swapping content so a full-window sized pet never flashes.
+    await appWindow.setSize(new PhysicalSize(newW, newH));
+    await appWindow.setPosition(new PhysicalPosition(targetX, targetY));
     widgetMode.value = true;
     await nextTick();
-    await appWindow.setPosition(new PhysicalPosition(newX, newY));
-    await appWindow.setSize(new PhysicalSize(newW, newH));
   } catch (e) {
     console.error(e);
   }
@@ -71,25 +77,20 @@ async function enterWidgetMode() {
 
 async function restoreFromWidget() {
   try {
-    const [size, pos] = await Promise.all([appWindow.outerSize(), appWindow.outerPosition()]);
-
-    const newW = Math.round(savedState.w);
-    const newH = Math.round(savedState.h);
-    // Expand from the widget's CENTER, then clamp on-screen.
-    const newX = Math.max(0, Math.round(pos.x + (size.width - newW) / 2));
-    const newY = Math.max(0, Math.round(pos.y + (size.height - newH) / 2));
-
     await Promise.all([
       appWindow.setAlwaysOnTop(false),
       appWindow.setSkipTaskbar(false),
       appWindow.setMaximizable(true),
     ]);
 
-    // Grow first (min size still small so it never clamps), reposition, then swap content.
-    await appWindow.setPosition(new PhysicalPosition(newX, newY));
-    await appWindow.setSize(new PhysicalSize(newW, newH));
-    await appWindow.setMinSize(new LogicalSize(720, 500));
+    // Return to the exact rect the window had before shrinking: move first (the
+    // window is still small, so this never clamps), swap content, then grow into
+    // the saved size from the saved top-left.
+    await appWindow.setPosition(new PhysicalPosition(savedState.x, savedState.y));
     widgetMode.value = false;
+    await nextTick();
+    await appWindow.setSize(new PhysicalSize(Math.round(savedState.w), Math.round(savedState.h)));
+    await appWindow.setMinSize(new LogicalSize(720, 500));
   } catch (e) {
     console.error(e);
   }

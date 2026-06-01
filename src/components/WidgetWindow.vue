@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { marked } from "marked";
-import { Maximize2, SendHorizonal, CheckCircle2, Zap, Heart, Eye } from "lucide-vue-next";
+import { Maximize2, SendHorizonal, CheckCircle2, Activity, Bell, Repeat2 } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useAgentStore } from "../stores/agentStore";
 import AgentPet from "./AgentPet.vue";
@@ -121,14 +121,17 @@ function interact() {
 
       <!-- MIDDLE: Buttons -->
       <div class="physical-controls">
-        <button class="btn-circle" @click="sendQuick('/status')" title="Status">
-          <Zap :size="12" />
+        <button class="btn-control" @click="sendQuick('/status')" title="Ask for a status update">
+          <Activity :size="13" />
+          <span class="btn-label">Status</span>
         </button>
-        <button class="btn-circle" @click="sendQuick('/remind')" title="Nudge">
-          <Heart :size="12" />
+        <button class="btn-control" @click="sendQuick('/remind')" title="Nudge me about my todo">
+          <Bell :size="13" />
+          <span class="btn-label">Remind</span>
         </button>
-        <button class="btn-circle" @click="showBubble = !showBubble" title="View">
-          <Eye :size="12" />
+        <button class="btn-control" @click="showBubble = !showBubble" :title="showBubble ? 'Show current goal' : 'Show last reply'">
+          <Repeat2 :size="13" />
+          <span class="btn-label">{{ showBubble ? 'Goal' : 'Reply' }}</span>
         </button>
       </div>
 
@@ -209,8 +212,6 @@ function interact() {
 .screen-main {
   flex: 1;
   padding: 8px;
-  background-image: radial-gradient(#000 0.5px, transparent 0.5px);
-  background-size: 4px 4px;
   overflow-y: auto;
 }
 .screen-main::-webkit-scrollbar { width: 3px; }
@@ -244,24 +245,32 @@ function interact() {
 /* ── Physical Controls ── */
 .physical-controls {
   display: flex;
-  justify-content: space-around;
-  padding: 0 20px;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 6px;
   -webkit-app-region: no-drag;
 }
-.btn-circle {
-  width: 26px;
-  height: 26px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 2px solid rgba(0,0,0,0.1);
-  border-radius: 50%;
+.btn-control {
+  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 1px;
+  padding: 4px 0 3px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1.5px solid rgba(0,0,0,0.1);
+  border-radius: 9px;
   cursor: pointer;
-  box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+  box-shadow: 0 2px 0 rgba(0,0,0,0.12);
   color: #333;
 }
-.btn-circle:active { transform: translateY(1px); box-shadow: none; }
+.btn-control:active { transform: translateY(1px); box-shadow: none; }
+.btn-label {
+  font-size: 7.5px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 
 /* ── External Input ── */
 .external-input-area {

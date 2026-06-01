@@ -22,7 +22,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
 </script>
 
 <template>
-  <Transition name="settings-drawer">
+  <Transition name="settings-drawer" :duration="{ enter: 300, leave: 240 }">
     <div v-if="ui.settingsOpen" class="drawer-root">
       <div class="backdrop" @click="close" />
       <aside class="panel">
@@ -42,8 +42,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
 .backdrop {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--color-bg) 40%, rgba(0, 0, 0, 0.35));
-  backdrop-filter: blur(1.5px);
+  background: color-mix(in srgb, var(--color-bg) 35%, rgba(0, 0, 0, 0.38));
 }
 
 .panel {
@@ -59,12 +58,12 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
 }
 
 /* ── Slide transition ── */
-.settings-drawer-enter-active .panel,
-.settings-drawer-leave-active .panel { transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1); }
+.settings-drawer-enter-active .panel { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.settings-drawer-leave-active .panel { transition: transform 0.24s cubic-bezier(0.4, 0, 1, 1); }
 .settings-drawer-enter-from .panel,
-.settings-drawer-leave-to .panel { transform: translateX(100%); }
+.settings-drawer-leave-to .panel { transform: translateX(101%); }
 
-.settings-drawer-enter-active .backdrop,
+.settings-drawer-enter-active .backdrop { transition: opacity 0.3s ease; }
 .settings-drawer-leave-active .backdrop { transition: opacity 0.24s ease; }
 .settings-drawer-enter-from .backdrop,
 .settings-drawer-leave-to .backdrop { opacity: 0; }
