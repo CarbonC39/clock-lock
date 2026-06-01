@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from "vue";
 import { marked } from "marked";
-import { Pencil, BookOpen, StickyNote } from "lucide-vue-next";
+import { Pencil } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import MarkdownCodeEditor from "./MarkdownCodeEditor.vue";
 
@@ -59,7 +59,6 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
 <template>
   <div class="card overview-card">
     <div class="card-head">
-      <component :is="tab === 'overview' ? BookOpen : StickyNote" :size="13" class="head-icon" />
       <div class="seg">
         <button class="seg-btn" :class="{ on: tab === 'overview' }" @click="switchTab('overview')">Overview</button>
         <button class="seg-btn" :class="{ on: tab === 'notes' }" @click="switchTab('notes')">Notes</button>
@@ -114,22 +113,19 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
 .card-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  position: relative;
   padding: 8px 12px;
   border-bottom: 1px solid var(--color-border-soft);
   flex-shrink: 0;
 }
-.head-icon { color: var(--color-accent-blue); flex-shrink: 0; }
 
 .seg {
   display: flex;
   gap: 2px;
-  flex: 1;
   background: var(--color-surface-hover);
   border-radius: var(--radius-sm);
   padding: 2px;
-  width: fit-content;
-  flex-grow: 0;
 }
 .seg-btn {
   font-size: 11px;
@@ -151,12 +147,13 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
 }
 
 .edit-btn {
+  position: absolute;
+  right: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
-  margin-left: auto;
   border: none;
   background: none;
   color: var(--color-text-muted);

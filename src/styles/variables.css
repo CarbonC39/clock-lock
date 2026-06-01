@@ -132,14 +132,12 @@ body {
 /* Square off when maximized so there are no gaps at the screen corners. */
 body.is-maximized #app { border-radius: 0; }
 
-/* Widget mode: fill every pixel with the device's base gradient so the
-   rounded-corner gaps never fall back to black on systems without a
-   compositor (the Linux dev sandbox). The rounded device draws on top. */
-body.is-widget #app {
-  border-radius: 0;
-  background: linear-gradient(145deg, #ddd6fe, #fbcfe8);
-}
-body.is-widget { background: linear-gradient(145deg, #ddd6fe, #fbcfe8) !important; }
+/* Widget mode: the window itself is fully transparent so only the rounded
+   tamagotchi device shows, floating with nothing behind it. Needs a compositor;
+   on Linux we disable webkit's DMABUF renderer (in lib.rs) so this renders
+   see-through instead of black. */
+body.is-widget #app { border-radius: 0; background: transparent; }
+body.is-widget { background: transparent !important; }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

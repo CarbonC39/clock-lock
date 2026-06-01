@@ -121,17 +121,18 @@ function interact() {
 
       <!-- MIDDLE: Buttons -->
       <div class="physical-controls">
-        <button class="btn-control" @click="sendQuick('/status')" title="Ask for a status update">
-          <Activity :size="13" />
-          <span class="btn-label">Status</span>
+        <button class="btn-control" @click="sendQuick('/status')" title="Status update">
+          <Activity :size="15" />
         </button>
-        <button class="btn-control" @click="sendQuick('/remind')" title="Nudge me about my todo">
-          <Bell :size="13" />
-          <span class="btn-label">Remind</span>
+        <button class="btn-control" @click="sendQuick('/remind')" title="Remind me of my todo">
+          <Bell :size="15" />
         </button>
-        <button class="btn-control" @click="showBubble = !showBubble" :title="showBubble ? 'Show current goal' : 'Show last reply'">
-          <Repeat2 :size="13" />
-          <span class="btn-label">{{ showBubble ? 'Goal' : 'Reply' }}</span>
+        <button
+          class="btn-control"
+          :title="showBubble ? 'Show current goal' : 'Show last reply'"
+          @click="showBubble = !showBubble"
+        >
+          <Repeat2 :size="15" />
         </button>
       </div>
 
@@ -245,32 +246,27 @@ function interact() {
 /* ── Physical Controls ── */
 .physical-controls {
   display: flex;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 0 6px;
+  justify-content: center;
+  gap: 16px;
+  padding: 0;
   -webkit-app-region: no-drag;
 }
 .btn-control {
-  flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 1px;
-  padding: 4px 0 3px;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
   background: rgba(255, 255, 255, 0.72);
   border: 1.5px solid rgba(0,0,0,0.1);
-  border-radius: 9px;
+  border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 2px 0 rgba(0,0,0,0.12);
   color: #333;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
-.btn-control:active { transform: translateY(1px); box-shadow: none; }
-.btn-label {
-  font-size: 7.5px;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
+.btn-control:hover { background: rgba(255, 255, 255, 0.9); }
+.btn-control:active { transform: translateY(2px); box-shadow: none; }
 
 /* ── External Input ── */
 .external-input-area {

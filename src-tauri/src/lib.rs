@@ -28,6 +28,14 @@ use watcher::{start_watching, stop_watching, WatcherState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // On Linux, newer webkit2gtk ships a DMABUF renderer that frequently breaks
+    // window transparency — and often renders the whole webview black — under VMs,
+    // sandboxes, and many GPU drivers. Disabling it restores correct rendering and
+    // the transparent window background the floating widget depends on. Must be set
+    // before the webview is created.
+    #[cfg(target_os = "linux")]
+    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
     tauri::Builder::default()
         .manage(WatcherState::new())
         .manage(SupervisionState::new())
