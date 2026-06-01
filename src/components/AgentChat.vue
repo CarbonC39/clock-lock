@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { ref, nextTick, watch, onMounted } from "vue";
-import { useRouter } from "vue-router";
 import { SendHorizonal, Settings2, Trash2, ScanEye, ChevronDown, ChevronUp, Square } from "lucide-vue-next";
 import { useAgentStore, getSlashCommands } from "../stores/agentStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSupervisionStore } from "../stores/supervisionStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useUiStore } from "../stores/uiStore";
 import ChatMessage from "./ChatMessage.vue";
 import AgentPet from "./AgentPet.vue";
 
-const router = useRouter();
 const agent = useAgentStore();
 const settings = useSettingsStore();
 const sv = useSupervisionStore();
 const workspace = useWorkspaceStore();
+const ui = useUiStore();
 
 const inputText = ref("");
 const messagesEl = ref<HTMLDivElement>();
@@ -67,7 +67,7 @@ onMounted(() => {
         <button
           class="hdr-btn"
           title="Settings"
-          @click="router.push('/settings')"
+          @click="ui.toggleSettings()"
         >
           <Settings2 :size="12" />
         </button>
@@ -85,7 +85,7 @@ onMounted(() => {
         </p>
         <div v-if="!settings.settings.api_key && settings.settings.provider === 'cloud'" class="setup-hint">
           Configure your API key in
-          <button class="link-btn" @click="router.push('/settings')">Settings</button>
+          <button class="link-btn" @click="ui.toggleSettings()">Settings</button>
           to get started.
         </div>
       </div>

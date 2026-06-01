@@ -1,10 +1,25 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, Cloud, Server, Check, Sun, Moon, Monitor } from "lucide-vue-next";
+import {
+  ArrowLeft, X, Cloud, Server, Check, Sun, Moon, Monitor,
+  Plug, Bot, Palette, SlidersHorizontal,
+} from "lucide-vue-next";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useUiStore } from "../stores/uiStore";
 import { useSupervisionStore } from "../stores/supervisionStore";
+
+type SettingsTab = "provider" | "agent" | "appearance" | "behavior";
+const tab = ref<SettingsTab>("provider");
+const TABS: { id: SettingsTab; label: string; icon: any }[] = [
+  { id: "provider", label: "Provider", icon: Plug },
+  { id: "agent", label: "Agent", icon: Bot },
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "behavior", label: "Behavior", icon: SlidersHorizontal },
+];
+
+const props = defineProps<{ embedded?: boolean }>();
+const emit = defineEmits<{ close: [] }>();
 
 const router = useRouter();
 const store = useSettingsStore();
@@ -16,6 +31,11 @@ const showKey = ref(false);
 
 onMounted(() => store.load());
 
+function goBack() {
+  if (props.embedded) emit("close");
+  else router.push("/");
+}
+
 async function save() {
   await store.save();
   saved.value = true;
@@ -24,21 +44,32 @@ async function save() {
 </script>
 
 <template>
-  <div class="settings-page">
+  <div class="settings-page" :class="{ embedded }">
     <!-- Header -->
     <div class="settings-header">
-      <button class="back-btn" @click="router.push('/')">
-        <ArrowLeft :size="14" />
+      <button class="back-btn" :title="embedded ? 'Close' : 'Back'" @click="goBack">
+        <component :is="embedded ? X : ArrowLeft" :size="15" />
       </button>
       <h1 class="settings-title">Settings</h1>
     </div>
 
-    <div class="settings-body">
-      <!-- ── Top grid: Provider (left) + Appearance & Behavior (right) ── -->
-      <div class="top-grid">
+    <!-- Tabs -->
+    <div class="settings-tabs">
+      <button
+        v-for="t in TABS"
+        :key="t.id"
+        class="settings-tab"
+        :class="{ active: tab === t.id }"
+        @click="tab = t.id"
+      >
+        <component :is="t.icon" :size="14" />
+        <span>{{ t.label }}</span>
+      </button>
+    </div>
 
-        <!-- Left: AI Provider -->
-        <section class="section">
+    <div class="settings-body">
+        <!-- ── Provider ── -->
+        <section v-show="tab === 'provider'" class="section">
           <h2 class="section-title">AI Provider</h2>
 
           <div class="field-group">
@@ -103,10 +134,8 @@ async function save() {
           </div>
         </section>
 
-        <!-- Right: Appearance + App Behavior -->
-        <div class="right-col">
-          <!-- Appearance -->
-          <section class="section">
+        <!-- ── Appearance ── -->
+        <section v-show="tab === 'appearance'" class="section">
             <h2 class="section-title">Appearance</h2>
 
             <div class="field-group">
@@ -140,7 +169,8 @@ async function save() {
             </div>
           </section>
 
-          <!-- App Behavior -->
+        <!-- ── Behavior: App + Supervision ── -->
+        <template v-if="tab === 'behavior'">
           <section class="section">
             <h2 class="section-title">App Behavior</h2>
 
@@ -217,11 +247,10 @@ async function save() {
               <p class="field-hint">After this many hours of inactivity, the agent will check in on you.</p>
             </div>
           </section>
-        </div>
-      </div>
+        </template>
 
-      <!-- ── Agent (full width) ── -->
-      <section class="section section-full">
+        <!-- ── Agent ── -->
+        <section v-show="tab === 'agent'" class="section">
         <h2 class="section-title">Agent</h2>
 
         <div class="field-group">
@@ -299,6 +328,8 @@ async function save() {
   background: var(--color-bg);
   overflow: hidden;
 }
+.settings-page.embedded { background: var(--color-surface); }
+.settings-page.embedded .settings-header { padding: 0 18px; height: 48px; }
 
 /* ── Header ── */
 .settings-header {
@@ -336,12 +367,46 @@ async function save() {
   margin: 0;
 }
 
+/* ── Tabs ── */
+.settings-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 14px 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--transition), border-color var(--transition);
+}
+.settings-tab:hover { color: var(--color-text-secondary); }
+.settings-tab.active {
+  color: var(--color-accent-blue);
+  border-bottom-color: var(--color-accent-blue);
+}
+
 /* ── Body ── */
 .settings-body {
   flex: 1;
   overflow-y: auto;
-  padding: 32px 40px 60px;
+  padding: 24px 28px 60px;
 }
+
+.settings-page.embedded .settings-body { padding: 22px 22px 60px; }
 
 /* ── Top 2-column grid ── */
 .top-grid {
@@ -455,11 +520,12 @@ async function save() {
 
 .field-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
 .field-half {
-  flex: 1;
+  flex: 1 1 180px;
   min-width: 0;
 }
 

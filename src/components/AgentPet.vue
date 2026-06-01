@@ -3,45 +3,37 @@ import { computed, ref, onMounted, onUnmounted, watch } from "vue";
 
 const props = defineProps<{
   state: "idle" | "thinking" | "happy" | "sleepy" | "excited";
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
 }>();
 
 const frame = ref(0);
 let timer: ReturnType<typeof setInterval> | null = null;
 
+// One stable identity per state — only a subtle blink or trailing chars animate,
+// so the face never morphs into a different character.
 const animations: Record<string, { frames: string[], interval: number }> = {
   idle: {
-    frames: [
-      "(・ω・)", "(・ω・)", "(・ω・)", "(・ω・)", "(・ω・)", "(・ω・)", "(・ω・)",
-      "(－ω－)", // blink
-      "(・ω・)", "(・ω・)", "(・ω・)",
-      "(・ω・)", "(・ω・)", "(・ω・)"
-    ],
-    interval: 400
+    // Same face, the occasional slow blink
+    frames: ["(・ω・)", "(・ω・)", "(・ω・)", "(・ω・)", "(・ω・)", "(－ω－)"],
+    interval: 600
   },
   thinking: {
-    frames: [
-      "(・・ )   ", "(・・ ) . ", "(・・ ) ..", "(・・ )..."
-    ],
-    interval: 500
+    // Same face, animated trailing dots
+    frames: ["(・ω・)   ", "(・ω・).  ", "(・ω・).. ", "(・ω・)..."],
+    interval: 420
   },
   happy: {
-    frames: [
-      "(＾▽＾)", "(＾▽＾)", "( ^▽^)", "( ^▽^)"
-    ],
-    interval: 300
+    frames: ["(＾▽＾)"],
+    interval: 1000
   },
   sleepy: {
-    frames: [
-      "( ˘ω˘)    ", "( ˘ω˘) z  ", "( ˘ω˘) zz ", "( ˘ω˘) zzz"
-    ],
-    interval: 800
+    // Same face, growing zzz
+    frames: ["( ˘ω˘)    ", "( ˘ω˘) z  ", "( ˘ω˘) zz ", "( ˘ω˘) zzz"],
+    interval: 760
   },
   excited: {
-    frames: [
-      "(*ﾟ▽ﾟ*)", "(☆▽☆)"
-    ],
-    interval: 300
+    frames: ["(☆▽☆)"],
+    interval: 1000
   },
 };
 
@@ -86,6 +78,7 @@ const sizeClass = computed(() => `pet-${props.size ?? "md"}`);
 .pet-sm  { font-size: 12px; }
 .pet-md  { font-size: 20px; line-height: 1; }
 .pet-lg  { font-size: 36px; }
+.pet-xl  { font-size: 22px; line-height: 1; letter-spacing: 0.02em; }
 
 /* ── Per-state colors ── */
 .pet-state-idle     { color: var(--color-accent-purple); }

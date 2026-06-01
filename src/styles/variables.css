@@ -1,12 +1,16 @@
 /* ── Light theme ──────────────────────────────────────────────────────────── */
 :root,
 [data-theme="light"] {
-  --color-bg: #f1f5f9;
+  --color-bg: #dce8fa;
   --color-surface: #ffffff;
-  --color-surface-hover: #e2e8f0;
-  --color-surface-active: #cbd5e1;
-  --color-border: #cbd5e1;
-  --color-border-soft: #e2e8f0;
+  --color-surface-hover: #e8eefb;
+  --color-surface-active: #d5e1f7;
+  --color-border: #c4d4ee;
+  --color-border-soft: #dde7f7;
+
+  /* Elevation — soft blue-tinted shadows so bright cards float on the light-blue base */
+  --shadow-card: 0 2px 10px rgba(60, 95, 165, 0.10), 0 1px 3px rgba(60, 95, 165, 0.06);
+  --shadow-lg:   0 12px 40px rgba(40, 70, 140, 0.20);
 
   /* Accent palette */
   --color-accent-blue:   #3b6fd4;
@@ -27,10 +31,10 @@
   --color-text-faint:     #94a3b8;
 
   /* Surfaces */
-  --color-sidebar-bg:   #e8edf5;
-  --color-topbar-bg:    #ffffff;
-  --color-topbar-border: #cbd5e1;
-  --color-input-bg:     #f8fafc;
+  --color-sidebar-bg:   #d2e0f6;
+  --color-topbar-bg:    #eef4fd;
+  --color-topbar-border: #c4d4ee;
+  --color-input-bg:     #f4f8ff;
 
   /* Git */
   --git-modified: #d97706;
@@ -64,14 +68,18 @@
   --color-accent-teal:   #94e2d5;
 
   --color-text-primary:   #cdd6f4;
-  --color-text-secondary: #bac2de;
-  --color-text-muted:     #6c7086;
-  --color-text-faint:     #45475a;
+  --color-text-secondary: #b4bcd8;
+  --color-text-muted:     #9399b2;
+  --color-text-faint:     #6c7086;
 
   --color-sidebar-bg:   #181825;
-  --color-topbar-bg:    #1e1e2e;
+  --color-topbar-bg:    #181825;
   --color-topbar-border: #313244;
   --color-input-bg:     #1e1e2e;
+
+  /* Elevation — deeper shadows for the dark base */
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.30), 0 1px 3px rgba(0, 0, 0, 0.20);
+  --shadow-lg:   0 12px 40px rgba(0, 0, 0, 0.50);
 
   --git-modified: #f9e2af;
   --git-added:    #a6e3a1;

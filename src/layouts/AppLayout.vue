@@ -1,87 +1,63 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from "vue";
+import { FolderOpen, FolderTree } from "lucide-vue-next";
 import Topbar from "../components/Topbar.vue";
-import FileTree from "../components/FileTree.vue";
-import WorkspaceHome from "../components/WorkspaceHome.vue";
+import TodoCard from "../components/TodoCard.vue";
+import OverviewCard from "../components/OverviewCard.vue";
 import AgentChat from "../components/AgentChat.vue";
+import FilesDrawer from "../components/FilesDrawer.vue";
+import SettingsDrawer from "../components/SettingsDrawer.vue";
+import { useWorkspaceStore } from "../stores/workspaceStore";
+import { useUiStore } from "../stores/uiStore";
 
-const LEFT_DEFAULT = 220;
-const RIGHT_DEFAULT = 300;
-const LEFT_MIN = 180;
-const RIGHT_MIN = 280;
-
-const leftWidth = ref(LEFT_DEFAULT);
-const rightWidth = ref(RIGHT_DEFAULT);
-
-let dragging: "left" | "right" | null = null;
-let startX = 0;
-let startWidth = 0;
-
-function onDividerMouseDown(side: "left" | "right", e: MouseEvent) {
-  dragging = side;
-  startX = e.clientX;
-  startWidth = side === "left" ? leftWidth.value : rightWidth.value;
-  document.body.style.cursor = "col-resize";
-  document.body.style.userSelect = "none";
-  window.addEventListener("mousemove", onMouseMove);
-  window.addEventListener("mouseup", onMouseUp);
-}
-
-function onMouseMove(e: MouseEvent) {
-  if (!dragging) return;
-  const delta = e.clientX - startX;
-  if (dragging === "left") {
-    leftWidth.value = Math.max(LEFT_MIN, startWidth + delta);
-  } else {
-    rightWidth.value = Math.max(RIGHT_MIN, startWidth - delta);
-  }
-}
-
-function onMouseUp() {
-  dragging = null;
-  document.body.style.cursor = "";
-  document.body.style.userSelect = "";
-  window.removeEventListener("mousemove", onMouseMove);
-  window.removeEventListener("mouseup", onMouseUp);
-}
-
-onUnmounted(() => {
-  window.removeEventListener("mousemove", onMouseMove);
-  window.removeEventListener("mouseup", onMouseUp);
-});
+const workspace = useWorkspaceStore();
+const ui = useUiStore();
 </script>
 
 <template>
   <div class="app-layout">
     <Topbar />
 
-    <div class="panels">
-      <!-- Left panel -->
-      <div class="panel panel-left" :style="{ width: leftWidth + 'px' }">
-        <FileTree />
-      </div>
+    <div class="workspace-area">
+      <!-- Left column: project cards -->
+      <aside class="left-stack">
+        <template v-if="workspace.path">
+          <TodoCard class="todo-slot" />
+          <OverviewCard class="overview-slot" />
+        </template>
 
-      <!-- Left divider -->
-      <div class="divider" @mousedown="onDividerMouseDown('left', $event)" />
+        <!-- No workspace -->
+        <button v-else class="open-card" @click="workspace.openWorkspace()">
+          <FolderOpen :size="26" />
+          <span class="open-title">Open a Workspace</span>
+          <span class="open-hint">Pick a project folder to begin</span>
+        </button>
 
-      <!-- Center panel -->
-      <div class="panel panel-center">
-        <WorkspaceHome />
-      </div>
+        <!-- Files drawer trigger -->
+        <button
+          class="files-fab"
+          :class="{ active: ui.filesOpen }"
+          @click="ui.toggleFiles()"
+        >
+          <FolderTree :size="14" />
+          <span>Files</span>
+        </button>
+      </aside>
 
-      <!-- Right divider -->
-      <div class="divider" @mousedown="onDividerMouseDown('right', $event)" />
-
-      <!-- Right panel -->
-      <div class="panel panel-right" :style="{ width: rightWidth + 'px' }">
+      <!-- Center: the hero -->
+      <main class="chat-hero">
         <AgentChat />
-      </div>
+      </main>
     </div>
+
+    <!-- Overlays -->
+    <FilesDrawer />
+    <SettingsDrawer />
   </div>
 </template>
 
 <style scoped>
 .app-layout {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -89,47 +65,95 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.panels {
-  display: flex;
+.workspace-area {
   flex: 1;
+  display: flex;
+  gap: 12px;
+  padding: 12px;
   overflow: hidden;
 }
 
-.panel {
+/* ── Left column ── */
+.left-stack {
+  width: 248px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  gap: 12px;
   overflow: hidden;
 }
 
-.panel-left {
-  flex-shrink: 0;
-  background-color: var(--color-sidebar-bg);
-  border-right: 1px solid var(--color-border);
+.todo-slot {
+  flex: 0 1 auto;
+  max-height: 45%;
+}
+.overview-slot {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-.panel-center {
+/* No-workspace card */
+.open-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-surface);
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  color: var(--color-accent-blue);
+  transition: border-color var(--transition), background-color var(--transition);
+}
+.open-card:hover {
+  border-color: color-mix(in srgb, var(--color-accent-blue) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-blue) 4%, var(--color-surface));
+}
+.open-title { font-size: 13px; font-weight: 700; color: var(--color-text-primary); }
+.open-hint { font-size: 11.5px; color: var(--color-text-muted); }
+
+/* ── Files trigger ── */
+.files-fab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: var(--font-sans);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition), color var(--transition), border-color var(--transition);
+}
+.files-fab:hover {
+  color: var(--color-accent-teal);
+  border-color: color-mix(in srgb, var(--color-accent-teal) 40%, var(--color-border));
+}
+.files-fab.active {
+  color: var(--color-accent-teal);
+  background: color-mix(in srgb, var(--color-accent-teal) 10%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-accent-teal) 45%, var(--color-border));
+}
+
+/* ── Center hero ── */
+.chat-hero {
   flex: 1;
   min-width: 0;
-  background-color: var(--color-bg);
-}
-
-.panel-right {
-  flex-shrink: 0;
-  background-color: var(--color-sidebar-bg);
-  border-left: 1px solid var(--color-border);
-}
-
-.divider {
-  width: 4px;
-  flex-shrink: 0;
-  cursor: col-resize;
-  background-color: transparent;
-  transition: background-color var(--transition);
-  z-index: 10;
-}
-
-.divider:hover {
-  background-color: var(--color-border);
-  opacity: 0.8;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
 }
 </style>

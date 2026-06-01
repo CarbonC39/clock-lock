@@ -16,6 +16,15 @@ export const useUiStore = defineStore("ui", () => {
 
   const autoRestoreWorkspace = ref(localStorage.getItem("autoRestore") !== "false");
 
+  // ── Slide-over panels ──
+  const filesOpen = ref(false);
+  const settingsOpen = ref(false);
+
+  function toggleFiles() { filesOpen.value = !filesOpen.value; }
+  function setFiles(v: boolean) { filesOpen.value = v; }
+  function toggleSettings() { settingsOpen.value = !settingsOpen.value; }
+  function setSettings(v: boolean) { settingsOpen.value = v; }
+
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
     _systemDark.value = e.matches;
     if (themeMode.value === "system") _apply();
@@ -44,5 +53,9 @@ export const useUiStore = defineStore("ui", () => {
     _apply();
   }
 
-  return { isDark, themeMode, setThemeMode, toggleTheme, autoRestoreWorkspace, setAutoRestore, initTheme };
+  return {
+    isDark, themeMode, setThemeMode, toggleTheme,
+    autoRestoreWorkspace, setAutoRestore, initTheme,
+    filesOpen, settingsOpen, toggleFiles, setFiles, toggleSettings, setSettings,
+  };
 });

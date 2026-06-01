@@ -46,19 +46,24 @@ async function enterWidgetMode() {
 
     const newW = Math.round(WIDGET_W * sf);
     const newH = Math.round(WIDGET_H * sf);
-    // Anchor bottom-right corner so widget appears at current window's bottom-right
-    const newX = Math.round(pos.x + size.width - newW);
-    const newY = Math.round(pos.y + size.height - newH);
+    // Shrink in place: keep the window's CENTER fixed so the widget collapses
+    // toward where the window already is (anchored on position, not a corner).
+    const newX = Math.round(pos.x + (size.width - newW) / 2);
+    const newY = Math.round(pos.y + (size.height - newH) / 2);
 
-    // Switch Vue first so WidgetWindow renders; then resize (no RouterView flash)
+    // Configure window flags up front (no visual size change yet)
+    await appWindow.setMinSize(new LogicalSize(WIDGET_W, WIDGET_H));
+    await Promise.all([
+      appWindow.setAlwaysOnTop(true),
+      appWindow.setSkipTaskbar(true),
+      appWindow.setMaximizable(false),
+    ]);
+
+    // Swap to the centered widget view, then collapse the window around it.
     widgetMode.value = true;
     await nextTick();
-    await appWindow.setAlwaysOnTop(true);
-    await appWindow.setSkipTaskbar(true);
-    await appWindow.setMaximizable(false);
-    await appWindow.setMinSize(new LogicalSize(WIDGET_W, WIDGET_H));
-    await appWindow.setSize(new PhysicalSize(newW, newH));
     await appWindow.setPosition(new PhysicalPosition(newX, newY));
+    await appWindow.setSize(new PhysicalSize(newW, newH));
   } catch (e) {
     console.error(e);
   }
@@ -70,17 +75,19 @@ async function restoreFromWidget() {
 
     const newW = Math.round(savedState.w);
     const newH = Math.round(savedState.h);
-    // Anchor bottom-right corner
-    const newX = Math.round(pos.x + size.width - newW);
-    const newY = Math.round(pos.y + size.height - newH);
+    // Expand from the widget's CENTER, then clamp on-screen.
+    const newX = Math.max(0, Math.round(pos.x + (size.width - newW) / 2));
+    const newY = Math.max(0, Math.round(pos.y + (size.height - newH) / 2));
 
-    // Resize first so RouterView renders into the correct large window (no squish flash)
-    await appWindow.setAlwaysOnTop(false);
-    await appWindow.setSkipTaskbar(false);
-    await appWindow.setMaximizable(true);
-    await appWindow.setSize(new PhysicalSize(newW, newH));
+    await Promise.all([
+      appWindow.setAlwaysOnTop(false),
+      appWindow.setSkipTaskbar(false),
+      appWindow.setMaximizable(true),
+    ]);
+
+    // Grow first (min size still small so it never clamps), reposition, then swap content.
     await appWindow.setPosition(new PhysicalPosition(newX, newY));
-    // Set minSize after resize so it never clamps the current small size
+    await appWindow.setSize(new PhysicalSize(newW, newH));
     await appWindow.setMinSize(new LogicalSize(720, 500));
     widgetMode.value = false;
   } catch (e) {

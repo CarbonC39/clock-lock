@@ -166,16 +166,19 @@ function interact() {
 
 .device-body {
   position: relative;
-  width: 240px;
-  height: 210px; /* Long handheld look */
+  width: 100%;
+  height: 100%;
+  /* Fill the window so the (transparency-dependent) corners are the only area
+     that can show through — on systems without a compositor that keeps the
+     visible "black" to just the rounded corners instead of a wide margin. */
   background: linear-gradient(145deg, #ddd6fe, #fbcfe8);
-  border-radius: 35px;
+  border-radius: 26px;
   border: 3px solid rgba(255, 255, 255, 0.4);
   box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-  padding: 16px; /* Restored edge padding */
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px; /* Balanced gap */
+  gap: 9px;
   -webkit-app-region: drag;
 }
 
