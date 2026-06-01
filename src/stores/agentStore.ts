@@ -243,6 +243,10 @@ export const useAgentStore = defineStore("agent", () => {
   const isBusy = ref(false);
   const currentTool = ref<string | null>(null);
   const convId = ref<string | null>(null);
+  // Lightweight, in-memory hint of the file the user most recently touched —
+  // used for the soft status line near the pet and to ground check-ins. No git,
+  // no persistence growth (the durable copy lives in session_state).
+  const recentFocus = ref<{ file: string; at: number } | null>(null);
   let happyTimeoutId: ReturnType<typeof setTimeout> | null = null;
   let cancelRequested = false;
   let msgCounter = 0;
@@ -314,7 +318,17 @@ export const useAgentStore = defineStore("agent", () => {
     workspace.saveSessionState({});
 
     unlistenFsChange?.();
-    unlistenFsChange = await listen("fs-change", () => {
+    unlistenFsChange = await listen<{ path: string | null }>("fs-change", (e) => {
+      // Update the recent-focus hint (basename of the touched file). Persist the
+      // full path to session_state only when the file actually changes, so we
+      // don't write to sqlite on every keystroke-triggered save.
+      const path = e.payload?.path ?? null;
+      if (path) {
+        const base = path.split(/[\\/]/).pop() || path;
+        const changed = base !== recentFocus.value?.file;
+        recentFocus.value = { file: base, at: Date.now() };
+        if (changed) useWorkspaceStore().saveSessionState({ current_focus_file: path });
+      }
       if (isBusy.value) return;
       if (happyTimeoutId) clearTimeout(happyTimeoutId);
       state.value = "happy";
@@ -595,5 +609,5 @@ Edits → \`\`\`diff\`\`\` blocks. Mutating shell commands → \`\`\`bash\`\`\` 
     isBusy.value = false;
   }
 
-  return { messages, state, isBusy, currentTool, sendMessage, stopGeneration, pushNote, pushCheckin, snoozeCheckin, setState, clear, loadConversation };
+  return { messages, state, isBusy, currentTool, recentFocus, sendMessage, stopGeneration, pushNote, pushCheckin, snoozeCheckin, setState, clear, loadConversation };
 });

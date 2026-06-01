@@ -200,6 +200,20 @@ pub async fn log_event(
         .execute(&pool)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Retention: events are appended on every fs-change, so cap each project to
+    // its most recent rows to keep memory.db from growing without bound.
+    sqlx::query(
+        "DELETE FROM events WHERE project_hash = ? AND id NOT IN (
+            SELECT id FROM events WHERE project_hash = ?
+            ORDER BY created_at DESC, id DESC LIMIT 200
+        )",
+    )
+    .bind(&workspace_hash)
+    .bind(&workspace_hash)
+    .execute(&pool)
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 

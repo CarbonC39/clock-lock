@@ -12,6 +12,13 @@ pub struct WatcherState {
     last_emit: Mutex<Instant>,
 }
 
+/// Payload for the `fs-change` event. Carries the changed path so the UI can
+/// derive a recent-focus hint without ever running git or reading the file.
+#[derive(Clone, serde::Serialize)]
+struct FsChangePayload {
+    path: Option<String>,
+}
+
 impl WatcherState {
     pub fn new() -> Self {
         Self {
@@ -46,14 +53,16 @@ pub fn start_watching(app: AppHandle, workspace_path: String) -> Result<(), Stri
         }
 
         // Filter gitignored paths
-        if let Some(p) = event.paths.first() {
+        let changed = event.paths.first();
+        if let Some(p) = changed {
             if is_gitignored(&ws_root, p) {
                 return;
             }
         }
 
         *last = Instant::now();
-        let _ = app_clone.emit("fs-change", ());
+        let path = changed.map(|p| p.to_string_lossy().to_string());
+        let _ = app_clone.emit("fs-change", FsChangePayload { path });
         // Notify all windows when home.md changes (e.g., external editor edit)
         if event.paths.iter().any(|p| p.file_name().map(|n| n == "home.md").unwrap_or(false)) {
             let _ = app_clone.emit("home-md-changed", ());

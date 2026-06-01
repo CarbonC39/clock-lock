@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted } from "vue";
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { SendHorizonal, Settings2, Trash2, ScanEye, ChevronDown, ChevronUp, Square } from "lucide-vue-next";
 import { useAgentStore, getSlashCommands } from "../stores/agentStore";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -44,8 +44,30 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
+// Soft, natural-language recent-focus line near the pet — no numbers, no stats.
+// Coarsens over time and disappears once stale.
+const nowMs = ref(Date.now());
+let focusTimer: ReturnType<typeof setInterval> | null = null;
+
+const recentFocusLabel = computed<{ file: string; when: string } | null>(() => {
+  const rf = agent.recentFocus;
+  if (!rf) return null;
+  const mins = (nowMs.value - rf.at) / 60_000;
+  let when: string | null;
+  if (mins < 2) when = "just now";
+  else if (mins < 30) when = "a little while ago";
+  else if (mins < 120) when = "earlier";
+  else when = null; // stale → hide entirely
+  return when ? { file: rf.file, when } : null;
+});
+
 onMounted(() => {
   sv.start();
+  focusTimer = setInterval(() => { nowMs.value = Date.now(); }, 60_000);
+});
+
+onUnmounted(() => {
+  if (focusTimer) clearInterval(focusTimer);
 });
 </script>
 
@@ -55,6 +77,11 @@ onMounted(() => {
     <div class="panel-header">
       <AgentPet :state="agent.state" size="md" class="header-pet" />
       <span class="panel-title">Agent</span>
+      <transition name="focus-fade">
+        <span v-if="recentFocusLabel" class="focus-line">
+          was in <code>{{ recentFocusLabel.file }}</code> {{ recentFocusLabel.when }}
+        </span>
+      </transition>
       <div class="header-actions">
         <button
           v-if="agent.messages.length"
@@ -190,12 +217,34 @@ onMounted(() => {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--color-text-muted);
-  flex: 1;
 }
+
+.focus-line {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+.focus-line code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.focus-fade-enter-active,
+.focus-fade-leave-active { transition: opacity 0.4s ease; }
+.focus-fade-enter-from,
+.focus-fade-leave-to { opacity: 0; }
 
 .header-actions {
   display: flex;
   gap: 2px;
+  margin-left: auto;
 }
 
 .hdr-btn {
