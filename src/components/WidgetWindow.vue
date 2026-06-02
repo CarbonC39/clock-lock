@@ -178,7 +178,9 @@ function interact() {
   background: linear-gradient(145deg, #ddd6fe, #fbcfe8);
   border-radius: 26px;
   border: 3px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  /* No drop shadow here: the device fills the whole (transparent) window, so a
+     box-shadow can't render outside it — it only paints into the rounded-corner
+     cut-outs, showing up as a semi-transparent black smudge in the 4 corners. */
   padding: 14px;
   display: flex;
   flex-direction: column;
