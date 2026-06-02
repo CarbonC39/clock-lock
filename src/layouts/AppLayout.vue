@@ -69,7 +69,9 @@ const ui = useUiStore();
   flex: 1;
   display: flex;
   gap: 12px;
-  padding: 12px;
+  /* Tighter top gap: the topbar already carries internal padding below its
+     controls, so a full 12px here read as a lopsided gap vs. the window bottom. */
+  padding: 4px 12px 12px;
   overflow: hidden;
 }
 

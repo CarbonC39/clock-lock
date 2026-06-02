@@ -162,8 +162,10 @@ async function close() {
 
 .brand-name {
   font-size: 13px;
-  font-weight: 800;
-  color: var(--color-text-primary);
+  font-weight: 700;
+  /* Softer than text-primary so the brand sits calmly on the tinted topbar
+     instead of reading as a hard black block next to the muted controls. */
+  color: var(--color-text-secondary);
   letter-spacing: -0.01em;
 }
 

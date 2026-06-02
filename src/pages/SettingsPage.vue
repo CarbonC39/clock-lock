@@ -29,6 +29,20 @@ const sv = useSupervisionStore();
 const saved = ref(false);
 const showKey = ref(false);
 
+// Friendly idle-threshold presets instead of a raw hours box. "Off" parks the
+// threshold so far out it never fires (use DND/Focus for a quick mute).
+const IDLE_PRESETS: { label: string; h: number }[] = [
+  { label: "1h", h: 1 },
+  { label: "4h", h: 4 },
+  { label: "8h", h: 8 },
+  { label: "1 day", h: 24 },
+  { label: "2 days", h: 48 },
+  { label: "Off", h: 8760 },
+];
+function idleActive(h: number): boolean {
+  return h === 8760 ? sv.idleHours >= 168 : sv.idleHours === h;
+}
+
 onMounted(() => store.load());
 
 function goBack() {
@@ -232,19 +246,32 @@ async function save() {
               </button>
             </div>
 
+            <div class="toggle-row" style="margin-top: 6px">
+              <div class="toggle-info">
+                <span class="toggle-label">AI-generated check-ins</span>
+                <span class="toggle-hint">Occasionally (≤ once a day) write a fresh line that references what you were working on. Off keeps it to the built-in phrases — no API calls.</span>
+              </div>
+              <button
+                class="toggle-btn"
+                :class="{ on: sv.checkinGrounded }"
+                @click="sv.setCheckinGrounded(!sv.checkinGrounded)"
+              >
+                <span class="toggle-knob" />
+              </button>
+            </div>
+
             <div class="field-group" style="margin-top: 12px">
-              <label class="field-label">Idle check-in threshold (hours)</label>
-              <input
-                v-model.number="sv.idleHours"
-                class="field-input"
-                type="number"
-                min="1"
-                max="720"
-                step="1"
-                @change="sv.setIdleHours(sv.idleHours)"
-                @blur="(e) => { const v = (e.target as HTMLInputElement).valueAsNumber; if (isNaN(v) || v < 1) { sv.idleHours = 48; sv.setIdleHours(48) } }"
-              />
-              <p class="field-hint">After this many hours of inactivity, the agent will check in on you.</p>
+              <label class="field-label">Idle check-in threshold</label>
+              <div class="seg-tabs">
+                <button
+                  v-for="p in IDLE_PRESETS"
+                  :key="p.h"
+                  class="seg-tab"
+                  :class="{ active: idleActive(p.h) }"
+                  @click="sv.setIdleHours(p.h)"
+                >{{ p.label }}</button>
+              </div>
+              <p class="field-hint">How long you can be idle before the agent gently checks in.</p>
             </div>
           </section>
         </template>

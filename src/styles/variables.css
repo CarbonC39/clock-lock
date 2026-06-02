@@ -136,8 +136,16 @@ body.is-maximized #app { border-radius: 0; }
    tamagotchi device shows, floating with nothing behind it. Needs a compositor;
    on Linux we disable webkit's DMABUF renderer (in lib.rs) so this renders
    see-through instead of black. */
-body.is-widget #app { border-radius: 0; background: transparent; }
+/* Every layer behind the rounded tamagotchi device must be fully clear, with no
+   color transition — otherwise the corners outside the device's radius reveal a
+   semi-transparent fill (a fading bg or a tinted #app) instead of the desktop. */
+html:has(body.is-widget) { background: transparent !important; }
 body.is-widget { background: transparent !important; }
+body.is-widget #app {
+  border-radius: 0;
+  background: transparent !important;
+  transition: none;
+}
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -110,45 +110,48 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
   overflow: hidden;
 }
 
+/* Chrome-style tab strip: tabs sit on the bottom border, the active one
+   "lifts" into the body by hiding the line beneath it. */
 .card-head {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  padding: 8px 12px;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 6px 10px 0;
   border-bottom: 1px solid var(--color-border-soft);
   flex-shrink: 0;
 }
 
 .seg {
   display: flex;
-  gap: 2px;
-  background: var(--color-surface-hover);
-  border-radius: var(--radius-sm);
-  padding: 2px;
+  gap: 3px;
+  flex: 1;
 }
 .seg-btn {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
   font-family: var(--font-sans);
-  padding: 2px 9px;
-  border: none;
+  padding: 7px 14px 8px;
+  border: 1px solid transparent;
+  border-bottom: none;
   background: none;
   color: var(--color-text-muted);
-  border-radius: 3px;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -1px; /* overlap the head's bottom border */
   cursor: pointer;
   transition: background-color var(--transition), color var(--transition);
 }
-.seg-btn:hover { color: var(--color-text-secondary); }
+.seg-btn:hover { color: var(--color-text-secondary); background: var(--color-surface-hover); }
 .seg-btn.on {
   background: var(--color-surface);
   color: var(--color-accent-blue);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--color-border-soft);
+  border-bottom: 1px solid var(--color-surface); /* erase the line under the active tab */
 }
+.seg-btn.on:hover { background: var(--color-surface); }
 
 .edit-btn {
-  position: absolute;
-  right: 10px;
+  align-self: center;
+  margin-bottom: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -171,7 +174,11 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
   padding: 12px 14px 16px;
 }
 
-.edit-wrap { display: flex; flex-direction: column; }
+/* Fill the card body so the editor grows to the available height instead of
+   hugging a few lines of text. */
+.edit-wrap { display: flex; flex-direction: column; height: 100%; }
+.edit-wrap :deep(.cm-wrap) { flex: 1 1 auto; min-height: 0; display: flex; }
+.edit-wrap :deep(.cm-wrap > .cm-editor) { flex: 1; min-height: 0; }
 .edit-hint {
   font-size: 10.5px;
   color: var(--color-text-muted);

@@ -39,7 +39,9 @@ const mdHighlight = HighlightStyle.define([
 ]);
 
 const cmTheme = EditorView.theme({
-  "&": { color: "var(--color-text-primary)", background: "transparent" },
+  // height:100% lets the editor fill a flex/height-constrained parent (the
+  // Overview card body) instead of only growing to its content.
+  "&": { color: "var(--color-text-primary)", background: "transparent", height: "100%" },
   ".cm-content": {
     fontFamily: "var(--font-mono)",
     fontSize: "13px",

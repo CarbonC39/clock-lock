@@ -24,7 +24,6 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
 <template>
   <Transition name="settings-drawer" :duration="{ enter: 300, leave: 240 }">
     <div v-if="ui.settingsOpen" class="drawer-root">
-      <div class="backdrop" @click="close" />
       <aside class="panel">
         <SettingsPage embedded @close="close" />
       </aside>
@@ -33,16 +32,13 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
 </template>
 
 <style scoped>
+/* Non-blocking: root passes pointer events through to the chat behind; only the
+   panel is interactive. Closes via the header X or Esc (no dimming backdrop). */
 .drawer-root {
   position: absolute;
   inset: 0;
   z-index: 300;
-}
-
-.backdrop {
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--color-bg) 35%, rgba(0, 0, 0, 0.38));
+  pointer-events: none;
 }
 
 .panel {
@@ -55,6 +51,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
   border-left: 1px solid var(--color-border);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  pointer-events: auto;
 }
 
 /* ── Slide transition ── */
@@ -63,8 +60,4 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
 .settings-drawer-enter-from .panel,
 .settings-drawer-leave-to .panel { transform: translateX(101%); }
 
-.settings-drawer-enter-active .backdrop { transition: opacity 0.3s ease; }
-.settings-drawer-leave-active .backdrop { transition: opacity 0.24s ease; }
-.settings-drawer-enter-from .backdrop,
-.settings-drawer-leave-to .backdrop { opacity: 0; }
 </style>

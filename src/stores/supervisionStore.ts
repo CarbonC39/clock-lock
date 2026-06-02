@@ -183,6 +183,14 @@ export const useSupervisionStore = defineStore("supervision", () => {
   const snoozeUntil = ref<number>(
     Number(localStorage.getItem("sv-snooze-until")) || 0
   );
+  // Whether to spend the occasional (≤1/day) live, grounded check-in. Off → the
+  // companion only ever draws from the local phrase pool (zero API calls).
+  const checkinGrounded = ref(localStorage.getItem("sv-checkin-grounded-enabled") !== "false");
+
+  function setCheckinGrounded(v: boolean) {
+    checkinGrounded.value = v;
+    localStorage.setItem("sv-checkin-grounded-enabled", v ? "true" : "false");
+  }
 
   function setDnd(v: boolean) {
     dnd.value = v;
@@ -244,7 +252,8 @@ export const useSupervisionStore = defineStore("supervision", () => {
       // Tier 2 (the treat): at most one fresh, grounded line per day.
       const count = bumpCount();
       const wantGrounded =
-        !!base_url && !groundedUsedToday() && (count % GROUNDED_EVERY === 0 || !!focusFile);
+        checkinGrounded.value && !!base_url && !groundedUsedToday() &&
+        (count % GROUNDED_EVERY === 0 || !!focusFile);
 
       let checkinText: string | null = null;
       if (wantGrounded) {
@@ -283,9 +292,11 @@ export const useSupervisionStore = defineStore("supervision", () => {
     isRunning,
     idleHours,
     snoozeUntil,
+    checkinGrounded,
     setDnd,
     setIdleHours,
     setSnooze,
+    setCheckinGrounded,
     reportActivity,
     start,
     stop,

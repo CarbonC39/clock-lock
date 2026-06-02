@@ -71,14 +71,18 @@ const sizeClass = computed(() => `pet-${props.size ?? "md"}`);
   white-space: pre;
   user-select: none;
   display: inline-block;
+  text-align: center;
+  /* Fixed box + centered glyphs: kaomoji chars (full-width ・ω＾▽ …) don't share
+     an advance width, so without a reserved box each frame would nudge the
+     surrounding layout. A fixed width keeps siblings perfectly still while the
+     face animates; the glyphs just re-center inside it. */
   transition: color 0.4s ease;
-  min-width: 6ch;
 }
 
-.pet-sm  { font-size: 12px; }
-.pet-md  { font-size: 22px; line-height: 1; }
-.pet-lg  { font-size: 50px; line-height: 1.1; }
-.pet-xl  { font-size: 22px; line-height: 1; letter-spacing: 0.02em; }
+.pet-sm  { font-size: 12px; width: 6em; }
+.pet-md  { font-size: 22px; line-height: 1; width: 7em; }
+.pet-lg  { font-size: 50px; line-height: 1.1; width: 7.5em; }
+.pet-xl  { font-size: 22px; line-height: 1; letter-spacing: 0.02em; width: 7em; }
 
 /* ── Per-state colors ── */
 .pet-state-idle     { color: var(--color-accent-purple); }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
@@ -79,6 +79,16 @@ function close() {
   ui.setFiles(false);
 }
 
+// Esc closes the drawer (there's no dimming backdrop to click anymore).
+function onKey(e: KeyboardEvent) {
+  if (e.key === "Escape") close();
+}
+watch(() => ui.filesOpen, (open) => {
+  if (open) window.addEventListener("keydown", onKey);
+  else window.removeEventListener("keydown", onKey);
+});
+onUnmounted(() => window.removeEventListener("keydown", onKey));
+
 function feedToAgent() {
   if (!workspace.selectedFilePath || agent.isBusy) return;
   const rel = relPath();
@@ -106,8 +116,6 @@ async function saveAnnotation() {
 <template>
   <Transition name="drawer" :duration="{ enter: 300, leave: 240 }">
     <div v-if="ui.filesOpen" class="drawer-root">
-      <div class="backdrop" @click="close" />
-
       <aside class="drawer" :class="{ expanded: hasPreview }">
         <!-- ── Tree pane ── -->
         <div class="pane-tree">
@@ -199,16 +207,14 @@ async function saveAnnotation() {
 </template>
 
 <style scoped>
+/* Non-blocking: the root never captures pointer events, so the chat behind the
+   drawer stays fully clickable/typable. Only the panel itself is interactive.
+   Closes via the header X or Esc (no dimming backdrop). */
 .drawer-root {
   position: absolute;
   inset: 0;
   z-index: 200;
-}
-
-.backdrop {
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--color-bg) 35%, rgba(0, 0, 0, 0.38));
+  pointer-events: none;
 }
 
 .drawer {
@@ -222,6 +228,7 @@ async function saveAnnotation() {
   border-right: 1px solid var(--color-border);
   box-shadow: var(--shadow-lg);
   transition: width 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
 }
 .drawer.expanded { width: min(760px, 94vw); }
 
@@ -450,8 +457,4 @@ async function saveAnnotation() {
 .drawer-enter-from .drawer,
 .drawer-leave-to .drawer { transform: translateX(-101%); }
 
-.drawer-enter-active .backdrop { transition: opacity 0.3s ease; }
-.drawer-leave-active .backdrop { transition: opacity 0.24s ease; }
-.drawer-enter-from .backdrop,
-.drawer-leave-to .backdrop { opacity: 0; }
 </style>
