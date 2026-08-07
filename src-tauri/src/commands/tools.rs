@@ -80,26 +80,11 @@ pub async fn execute_tool(app: &AppHandle, name: &str, args: &Value) -> Result<S
             let _ = app.emit("home-md-changed", ());
             Ok("Notes updated.".into())
         }
-        "fetch_context" => {
+        "get_git_diff" => {
             let ws = args["workspace_path"]
                 .as_str()
                 .ok_or("missing workspace_path")?;
-            let context_type = args["type"].as_str().ok_or("missing type")?;
-            match context_type {
-                "git_diff" => crate::commands::fs::get_git_diff(ws.into()),
-                _ => Err(format!("unknown context type: {context_type}")),
-            }
-        }
-        "patch_markdown_section" => {
-            let file_name = args["file_name"].as_str().unwrap_or("home.md");
-            if file_name == "home.md" {
-                return Err("home.md uses a structured schema. Use update_overview, add_todo, or append_notes instead.".into());
-            }
-            let ws = args["workspace_path"].as_str().ok_or("missing workspace_path")?;
-            let heading = args["heading"].as_str().ok_or("missing heading")?;
-            let new_content = args["new_content"].as_str().ok_or("missing new_content")?;
-            patch_markdown_section(app, ws, file_name, heading, new_content).await?;
-            Ok(format!("Section \"{heading}\" in {file_name} updated successfully."))
+            crate::commands::fs::get_git_diff(ws.into())
         }
         "get_git_status" => {
             let ws = args["workspace_path"]
@@ -117,13 +102,13 @@ pub async fn execute_tool(app: &AppHandle, name: &str, args: &Value) -> Result<S
             ))
         }
         "search_memory" => {
-            let ws_hash = args["workspace_hash"]
+            let ws = args["workspace_path"]
                 .as_str()
-                .ok_or("missing workspace_hash")?;
+                .ok_or("missing workspace_path")?;
             let query = args["query"].as_str().unwrap_or("");
             let limit = args["limit"].as_u64().unwrap_or(5) as u32;
-            // This is async, so we use the direct helper
-            search_memory(app, ws_hash, query, limit).await
+            let ws_hash = crate::commands::fs::workspace_hash(ws);
+            search_memory(app, &ws_hash, query, limit).await
         }
         "run_bash" => {
             let cmd = args["command"].as_str().ok_or("missing command")?;
@@ -245,26 +230,6 @@ fn search_recursive(
         }
     }
     Ok(())
-}
-
-async fn patch_markdown_section(
-    app: &AppHandle,
-    workspace_path: &str,
-    file_name: &str,
-    heading: &str,
-    new_content: &str,
-) -> Result<(), String> {
-    let dir = crate::commands::fs::ensure_home_md(app.clone(), workspace_path.into())?.0;
-    let path = std::path::Path::new(&dir).parent().unwrap().join(file_name);
-    
-    let current = if path.exists() {
-        std::fs::read_to_string(&path).map_err(|e| e.to_string())?
-    } else {
-        String::new()
-    };
-
-    let updated = crate::commands::fs::patch_markdown_content(&current, heading, new_content);
-    std::fs::write(path, updated).map_err(|e| e.to_string())
 }
 
 async fn search_memory(

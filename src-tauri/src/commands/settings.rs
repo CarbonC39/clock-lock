@@ -41,7 +41,7 @@ impl Default for AgentSettings {
             base_url: "https://api.openai.com/v1".into(),
             api_key: String::new(),
             model: "gpt-4o-mini".into(),
-            personality: "helpful and encouraging senior developer".into(),
+            personality: "warm and direct work partner who tracks progress and encourages action".into(),
             max_context_messages: 30,
             max_tokens: 4096,
             shell_path: default_shell_path(),

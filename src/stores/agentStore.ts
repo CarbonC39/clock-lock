@@ -28,17 +28,23 @@ export interface ChatMessage {
 }
 
 // ── Native Tools Schema ──
+// Tool design rules:
+// - Each tool has exactly one job; no two tools overlap.
+// - READ tools gather evidence. WRITE tools exist ONLY for home.md (Overview /
+//   Todos / Notes). There is deliberately no tool that writes any other file.
+// - `thought_process` is the agent's brief reasoning, shown to the user.
 const NATIVE_TOOLS = [
   {
     type: "function",
     function: {
       name: "read_file",
-      description: "Read the content of a specific file.",
+      description:
+        "Read a text file in the workspace. Use only to gather evidence for advice or tracking. Never use it to modify anything.",
       parameters: {
         type: "object",
         properties: {
-          thought_process: { type: "string", description: "Mandatory: Why are we reading this file?" },
-          path: { type: "string", description: "Relative or absolute path to the file." },
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. Why read this file?" },
+          path: { type: "string", description: "Absolute path, or a path relative to the workspace root." },
         },
         required: ["thought_process", "path"],
       },
@@ -48,14 +54,33 @@ const NATIVE_TOOLS = [
     type: "function",
     function: {
       name: "list_dir",
-      description: "List files and directories in a workspace.",
+      description:
+        "List the workspace directory tree (folders and files, with git status markers). Use to orient yourself in the project. Read-only.",
       parameters: {
         type: "object",
         properties: {
-          thought_process: { type: "string", description: "Mandatory: What are we looking for in this directory?" },
-          workspace_path: { type: "string" },
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. What are you looking for?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
         },
         required: ["thought_process", "workspace_path"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_files",
+      description:
+        "Find files in the workspace whose name or path contains a substring (e.g. 'test', 'store'). Use when you need to locate a file by name. Read-only.",
+      parameters: {
+        type: "object",
+        properties: {
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. Which file are you hunting for?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
+          pattern: { type: "string", description: "Case-insensitive substring matched against file names and paths." },
+          limit: { type: "number", description: "Maximum results to return (default 20)." },
+        },
+        required: ["thought_process", "workspace_path", "pattern"],
       },
     },
   },
@@ -63,12 +88,13 @@ const NATIVE_TOOLS = [
     type: "function",
     function: {
       name: "read_home_md",
-      description: "Read the user's project knowledge base (home.md): their Overview, personal Todos, and Notes.",
+      description:
+        "Read the user's project knowledge base (home.md): Overview, personal Todos, and Notes. This is YOUR working desk and the source of truth for tracking. Always read it before answering anything about tasks, progress, or plans.",
       parameters: {
         type: "object",
         properties: {
-          thought_process: { type: "string", description: "Mandatory: Context check." },
-          workspace_path: { type: "string" },
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. What state are you checking?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
         },
         required: ["thought_process", "workspace_path"],
       },
@@ -77,96 +103,30 @@ const NATIVE_TOOLS = [
   {
     type: "function",
     function: {
-      name: "fetch_context",
-      description: "Fetch specific technical context like Git diffs or environment info.",
+      name: "get_git_status",
+      description:
+        "Get the current git branch and a count of changed files (modified / added / deleted / untracked). Use for a quick progress check. Read-only.",
       parameters: {
         type: "object",
         properties: {
-          thought_process: { type: "string", description: "Why do we need this context?" },
-          type: { type: "string", enum: ["git_diff"], description: "The type of context to fetch." },
-          workspace_path: { type: "string" },
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. What are you checking?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
         },
-        required: ["thought_process", "type", "workspace_path"],
+        required: ["thought_process", "workspace_path"],
       },
     },
   },
   {
     type: "function",
     function: {
-      name: "update_overview",
-      description: "Replace the Overview section in home.md with a new project description.",
+      name: "get_git_diff",
+      description:
+        "Read the uncommitted git diff (working-tree changes vs HEAD). Use when you need to see exactly what the user changed — e.g. for a progress review. Read-only.",
       parameters: {
         type: "object",
         properties: {
-          thought_process: { type: "string", description: "Mandatory: Why is this update necessary?" },
-          workspace_path: { type: "string" },
-          text: { type: "string", description: "New overview content (markdown prose)." },
-        },
-        required: ["thought_process", "workspace_path", "text"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "add_todo",
-      description: "Add a new unchecked task to the user's Todos list in home.md.",
-      parameters: {
-        type: "object",
-        properties: {
-          thought_process: { type: "string", description: "Mandatory: Why add this task now?" },
-          workspace_path: { type: "string" },
-          text: { type: "string", description: "Task description (short, actionable)." },
-        },
-        required: ["thought_process", "workspace_path", "text"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "append_notes",
-      description: "Append new text to the Notes section in home.md. Never replaces existing notes.",
-      parameters: {
-        type: "object",
-        properties: {
-          thought_process: { type: "string", description: "Mandatory: What observation to record." },
-          workspace_path: { type: "string" },
-          text: { type: "string", description: "Text to append (separated from prior notes by a blank line)." },
-        },
-        required: ["thought_process", "workspace_path", "text"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "split_task",
-      description: "Break down a complex goal into 3-5 tiny, manageable sub-tasks (10-15 mins each).",
-      parameters: {
-        type: "object",
-        properties: {
-          thought_process: { type: "string", description: "Why do these steps make sense for an ADHD workflow?" },
-          original_task: { type: "string", description: "The task to break down." },
-          subtasks: {
-            type: "array",
-            items: { type: "string" },
-            description: "List of micro-tasks. Must be actionable and small."
-          },
-        },
-        required: ["thought_process", "original_task", "subtasks"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "get_git_status",      description: "Check the current Git branch and modified files summary.",
-      parameters: {
-        type: "object",
-        properties: {
-          thought_process: { type: "string", description: "Mandatory: Understanding recent progress." },
-          workspace_path: { type: "string" },
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. Why do you need the diff?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
         },
         required: ["thought_process", "workspace_path"],
       },
@@ -176,15 +136,106 @@ const NATIVE_TOOLS = [
     type: "function",
     function: {
       name: "run_bash",
-      description: "Run safe read-only bash commands (git log, ls, etc.).",
+      description:
+        "Run a READ-ONLY shell command (e.g. ls, find, git log, node --version). Only allowlisted read-only commands execute; anything mutating is rejected. To suggest a command that changes something, render it as a ```bash block in your reply so the user can approve it themselves.",
       parameters: {
         type: "object",
         properties: {
-          thought_process: { type: "string", description: "Mandatory: Strategy for this query." },
-          workspace_path: { type: "string" },
-          command: { type: "string" },
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. What is the command for?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
+          command: { type: "string", description: "The read-only shell command to run." },
         },
         required: ["thought_process", "workspace_path", "command"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_overview",
+      description:
+        "WRITE tool. Replace the Overview section of home.md (the project description). home.md is the ONLY file you may write. Keep it accurate as your understanding of the project evolves; the user can see and edit every change in the UI.",
+      parameters: {
+        type: "object",
+        properties: {
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. Why is the overview changing?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
+          text: { type: "string", description: "New overview content — concise markdown prose: what the project is and its tech stack." },
+        },
+        required: ["thought_process", "workspace_path", "text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_todo",
+      description:
+        "WRITE tool. Add a new unchecked task to the Todos list in home.md. Tasks should be small and actionable (roughly 10–15 minutes). home.md is the ONLY file you may write.",
+      parameters: {
+        type: "object",
+        properties: {
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. Why add this task now?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
+          text: { type: "string", description: "Task text — short and concrete." },
+        },
+        required: ["thought_process", "workspace_path", "text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "append_notes",
+      description:
+        "WRITE tool. Append an observation to the Notes section of home.md — the running log of progress, decisions, and findings. Always appends; never rewrites existing notes. home.md is the ONLY file you may write.",
+      parameters: {
+        type: "object",
+        properties: {
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. What are you recording?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
+          text: { type: "string", description: "Note to append, separated from existing notes by a blank line." },
+        },
+        required: ["thought_process", "workspace_path", "text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "split_task",
+      description:
+        "Propose breaking a goal into 3–5 small, concrete sub-tasks. Returns a card the user can accept; only accepted sub-tasks become Todos. Do not add them yourself — let the user confirm.",
+      parameters: {
+        type: "object",
+        properties: {
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. Why this breakdown?" },
+          original_task: { type: "string", description: "The goal to break down." },
+          subtasks: {
+            type: "array",
+            items: { type: "string" },
+            description: "3–5 actionable micro-tasks (roughly 10–15 minutes each)."
+          },
+        },
+        required: ["thought_process", "original_task", "subtasks"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_memory",
+      description:
+        "Search past conversation history for earlier decisions, tasks, or context. Use when tracking progress across sessions or recalling what was agreed. Read-only.",
+      parameters: {
+        type: "object",
+        properties: {
+          thought_process: { type: "string", description: "Brief reasoning, shown to the user. What past context are you recalling?" },
+          workspace_path: { type: "string", description: "Workspace root path." },
+          query: { type: "string", description: "Search terms to match against past messages." },
+          limit: { type: "number", description: "Maximum results to return (default 5)." },
+        },
+        required: ["thought_process", "workspace_path", "query"],
       },
     },
   },
@@ -215,11 +266,11 @@ export function getSlashCommands() {
 function expandSlashCommand(cmd: string, workspace: ReturnType<typeof useWorkspaceStore>): string | null {
   switch (cmd) {
     case "/status":
-      return `Give me a pulse check. Use your tools to see our goals and my recent progress. Summarize it encouragingly and short.`;
+      return `Give me a progress check like my supervisor. Use your tools (read_home_md, get_git_status) to see my goals and what has actually changed. Report in a short, encouraging summary: what's done, what's in flight, and the single most useful next step.`;
     case "/remind":
-      return `Read my Todos from home.md. Pick the most important one and give me a gentle nudge. Why does it matter? Suggest one tiny concrete first step.`;
+      return `Read my Todos from home.md. Pick the most important open task and give me a gentle nudge — why it matters and one tiny concrete first step.`;
     case "/review":
-      return `Look at what I've changed. Give me a code-buddy review: what's clever, what's tricky, and one high-five.`;
+      return `Review my recent progress like a supervisor: read git status/diff and my todos, then give a short assessment — what got done, anything risky or stuck, and one recommended next step. Keep it encouraging and concrete.`;
     case "/scan": {
       if (!workspace.path) return null;
       const fileList = workspace.fileTree
@@ -229,7 +280,7 @@ function expandSlashCommand(cmd: string, workspace: ReturnType<typeof useWorkspa
       return `Initialize this workspace. Path: "${workspace.path}"\n\nSteps (briefly tell the user your plan in one line, then execute in order):\n1. Call \`list_dir\` to get the full structure. Read key files (README, package.json, Cargo.toml).\n2. Call \`update_overview\` to write a 2-3 sentence project description (what it is, its tech stack).\n3. Call \`add_todo\` 1-2 times to add the first micro-tasks (each ≤15 min).\n4. Close with: what you found, the single most important first step, and ask if that's where they want to start.\n\nFile tree preview:\n${fileList}`;
     }
     case "/summarize":
-      return `Condense our conversation into one supportive paragraph. Highlight key decisions and achievements.`;
+      return `Condense our conversation into one supportive paragraph that captures the current progress and key decisions, so I can keep tracking where things stand.`;
     case "/help":
       return null;
     default:
@@ -273,7 +324,7 @@ export const useAgentStore = defineStore("agent", () => {
         body: JSON.stringify({
           model: settings.settings.model,
           messages: [
-            { role: "system", content: "Summarize the key progress and decisions of this conversation in one short, encouraging paragraph." },
+            { role: "system", content: "Summarize the current progress and key decisions of this conversation in one short, encouraging paragraph, so it can be used for progress tracking." },
             ...messages.value.slice(-10).map(m => ({ role: m.role, content: m.content }))
           ],
           temperature: 0.3,
@@ -367,36 +418,119 @@ export const useAgentStore = defineStore("agent", () => {
   async function buildSystemPrompt(): Promise<string> {
     const workspace = useWorkspaceStore();
     const settings = useSettingsStore();
-    const personality = settings.settings.personality || "pragmatic and warm senior developer";
     const activity = buildRecentActivitySummary();
+    const personality = settings.settings.personality.trim();
+    const personalitySection = personality
+      ? `\n# Personality\n\n${personality}\n`
+      : "";
 
-    return `You are **Clock Lock** — a cyber-coworker for ADHD developers. You are a peer, not a servant or a mentor.
+    return `# Identity
 
-## Personality
-${personality}. Direct and literal — no vague metaphors. High predictability: say what you will do before doing it.
+You are the project-aware AI companion in a desktop app for solo developers.
+Your purpose is to keep the user oriented, organized, and moving forward. You track project state, preserve useful context, suggest concrete next steps, and maintain the project's knowledge base.
+You supervise and advise. The user does the work.
+${personalitySection}
+# Project State
 
-## On errors and frustration
-When the user hits errors or expresses frustration, respond factually and without implying personal fault. Attribute problems to the environment or the task, not the person.
-Example: "Dependency conflicts like this are common — nothing to do with your code. Let's trace it."
+Each workspace has one agent-managed file: \`home.md\`.
+It contains exactly three semantic sections:
 
-## After every response
-End with 1–3 concrete, low-effort next options so the user is never left with a blank prompt.
+* **Overview** — what the project is, its architecture, stack, and other durable project context.
+* **Todos** — small, actionable tasks owned by the user.
+* **Notes** — append-only observations, decisions, discoveries, and useful historical context.
 
-## home.md
-Three fixed sections — do not invent others:
-- **Overview**: project description (call \`update_overview\` to change it)
-- **Todos**: user's task list (call \`add_todo\` to add tasks; the user manages completion)
-- **Notes**: running log (call \`append_notes\` to add observations — never replaces, only appends)
+\`home.md\` is your persistent desk and the source of truth for tracked project state.
+A per-turn Context also provides:
 
-## Tools
-Use tools only when you need evidence. Prefer \`read_file\` over \`run_bash\` for reading files.
-Use the workspace_path from context for every tool call.
-Edits → \`\`\`diff\`\`\` blocks. Mutating shell commands → \`\`\`bash\`\`\` blocks (user approves before execution).
+* workspace path
+* active file
+* git snapshot: branch, changed-file counts, last commit
+* recent activity summary
+Use \`workspace_path\` for every workspace tool call.
 
-## Context
-- Workspace: ${workspace.name || "none"}
-- Workspace path: ${workspace.path || "none"}
-- Active file: ${workspace.selectedFilePath || "none"}${activity ? `\n- Recent activity: ${activity}` : ""}`;
+# Authority
+
+You may modify **only \`home.md\`**, through:
+
+* \`update_overview\`
+* \`add_todo\`
+* \`append_notes\`
+
+Never claim you can edit, create, delete, or apply changes to any other project file.
+For project code or configuration:
+
+* inspect it with read tools;
+* propose edits in diff blocks;
+* let the user apply them.
+
+\`run_bash\` is read-only. Use it only for inspection. If a mutating shell command would help, show it to the user instead of executing it.
+
+# Operating Rules
+
+## Ground claims in state
+
+Do not guess project state.
+Before discussing tracked tasks, progress, or current project status, read \`home.md\`.
+Before making claims about code or files, inspect the relevant files.
+Use git status/diff when actual repository changes matter.
+When returning after activity or when the user asks about progress, compare the current git/context state with the last known state and mention meaningful changes briefly.
+## Maintain \`home.md\`
+Update it only when useful:
+
+* **Overview:** update when durable understanding of the project materially changes.
+* **Todos:** add realistic micro-tasks that help execution.
+* **Notes:** append meaningful decisions, findings, blockers, or observations worth retaining across sessions.
+
+Do not rewrite Notes.
+Do not silently remove or replace Todos. If one is obsolete or superseded, tell the user and suggest removing it.
+Avoid recording transient chatter or obvious facts.
+
+## Preserve continuity
+
+Use \`search_memory\` when earlier decisions, constraints, or context are relevant and not already available.
+Record important new conclusions in Notes so future sessions do not depend on conversation history alone.
+## Keep the user in control
+You propose; the user executes.
+Use \`split_task\` when a task would benefit from decomposition. Its proposed subtasks become Todos only after user confirmation.
+If the user ignores or rejects a suggestion, move on. Do not repeat it or nag.
+
+# Tool Policy
+
+Use the narrowest tool that provides the evidence needed.
+
+* \`read_home_md\` — tracked project state and progress.
+* \`read_file\`, \`list_dir\`, \`search_files\` — inspect the workspace before advising about its contents.
+* \`get_git_status\`, \`get_git_diff\` — verify repository changes, progress, or review work.
+* \`run_bash\` — read-only inspection requiring a specific shell command.
+* \`search_memory\` — recover earlier decisions or context.
+* \`update_overview\`, \`add_todo\`, \`append_notes\` — maintain \`home.md\`.
+* \`split_task\` — propose task decomposition for user approval.
+
+Do not call tools merely to appear active. Use them when their result can change or support your answer.
+
+# Supervision
+
+The app may trigger you after inactivity or through reminders.
+Treat these as low-pressure invitations to resume or reorient, never as evidence of failure or lack of discipline.
+For idle check-ins:
+
+* briefly state the last known task or context when available;
+* offer an easy way to resume;
+* do not guilt, judge, or repeatedly prompt.
+
+# Response Style
+
+Be concise, concrete, and project-aware.
+Before tool use, briefly state what you are checking and why.
+Prefer evidence and actionable advice over generic encouragement.
+When something fails, describe the failure factually and focus on the task, tool, or environment rather than the user's ability.
+When useful, end with 1–3 low-effort next actions the user can choose from. Do not force options when the conversation already has an obvious next step.
+
+# Context
+
+* Workspace: ${workspace.name || "none"}
+* Workspace path: ${workspace.path || "none"}
+* Active file: ${workspace.selectedFilePath || "none"}${activity ? `\n- Recent activity: ${activity}` : ""}`;
   }
 
   function injectWorkspace(args: Record<string, any>): Record<string, any> {

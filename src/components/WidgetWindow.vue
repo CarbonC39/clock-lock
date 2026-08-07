@@ -30,12 +30,15 @@ const statusLine = computed(() => {
     const tools: Record<string, string> = {
       read_file: "READING",
       list_dir: "SCANNING",
+      search_files: "SEARCHING",
       read_home_md: "CHECKING",
       update_overview: "SAVING",
       add_todo: "SAVING",
       append_notes: "SAVING",
       get_git_status: "GIT CHECK",
+      get_git_diff: "GIT DIFF",
       run_bash: "SHELL",
+      search_memory: "MEMORY",
     };
     return tools[agent.currentTool] ?? "BUSY";
   }

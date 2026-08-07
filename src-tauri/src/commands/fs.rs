@@ -358,45 +358,6 @@ pub fn ensure_home_md(app: tauri::AppHandle, workspace_path: String) -> Result<(
     Ok((path_str, content))
 }
 
-/// Surgically replaces or appends a section in a markdown string.
-pub fn patch_markdown_content(current: &str, heading: &str, new_body: &str) -> String {
-    let lines: Vec<&str> = current.lines().collect();
-    let hl = format!("# {}", heading.trim());
-    let mut new_content = String::new();
-    let mut in_target = false;
-    let mut found = false;
-
-    for line in &lines {
-        if line.trim().starts_with("# ") {
-            if in_target {
-                in_target = false; // End of our target section
-            }
-            if line.trim() == hl {
-                in_target = true;
-                found = true;
-                new_content.push_str(line);
-                new_content.push('\n');
-                new_content.push_str(new_body.trim());
-                new_content.push('\n');
-                continue;
-            }
-        }
-        if !in_target {
-            new_content.push_str(line);
-            new_content.push('\n');
-        }
-    }
-
-    if !found {
-        if !new_content.ends_with('\n') && !new_content.is_empty() {
-            new_content.push('\n');
-        }
-        new_content.push_str(&format!("\n# {}\n{}\n", heading, new_body.trim()));
-    }
-
-    new_content
-}
-
 #[tauri::command]
 pub fn get_git_status(workspace_path: String) -> Result<GitStatus, String> {
     let workspace = Path::new(&workspace_path);

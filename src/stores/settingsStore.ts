@@ -31,7 +31,7 @@ export const useSettingsStore = defineStore("settings", () => {
     base_url: CLOUD_DEFAULTS.base_url,
     api_key: "",
     model: CLOUD_DEFAULTS.model,
-    personality: "helpful and encouraging senior developer",
+    personality: "warm and direct work partner who tracks progress and encourages action",
     max_context_messages: 30,
     max_tokens: 4096,
     shell_path: "",
