@@ -63,17 +63,20 @@ const ui = useUiStore();
 
 .tab-content {
   flex: 1;
+  min-height: 0;
   position: relative;
   overflow: hidden;
 }
 
-/* Each tab panel fills the content area (only one is visible at a time).
-   inset:12px keeps the 12px breathing room around the panels. */
+/* Each tab panel fills the content area, touching the topbar bottom so the
+   active tab (in the topbar) fuses with the panel. height:auto lets top/bottom
+   define the size (components' height:100% would ignore bottom and overflow). */
 .tab-content :deep(.agent-chat),
 .tab-content :deep(.files-pane),
 .tab-content :deep(.notes-tab) {
   position: absolute;
-  inset: 12px;
+  inset: 0 12px 12px;
+  height: auto;
 }
 
 /* ── Notes tab: left TodoCard + right OverviewCard ── */
@@ -93,7 +96,7 @@ const ui = useUiStore();
 /* No-workspace card (overlay) */
 .open-card {
   position: absolute;
-  inset: 12px;
+  inset: 0 12px 12px;
   z-index: 5;
   display: flex;
   flex-direction: column;

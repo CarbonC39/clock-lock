@@ -15,8 +15,8 @@ const toggleWidget = inject<() => Promise<void>>("toggleWidget");
 
 const tabs: { id: MainTab; label: string }[] = [
   { id: "chat", label: "Chat" },
-  { id: "files", label: "Files" },
   { id: "notes", label: "Notes" },
+  { id: "files", label: "Files" },
 ];
 
 const win = getCurrentWindow();
@@ -70,12 +70,14 @@ async function close() {
       </button>
     </div>
 
-    <!-- Center: main tabs (absolutely centered, disabled without a workspace) -->
+    <!-- Chrome-style tabs, sitting on the topbar's bottom edge and fusing
+         with the content panel below (disabled without a workspace) -->
     <nav class="topbar-tabs" :class="{ disabled: !workspace.path }">
       <button
         v-for="t in tabs"
         :key="t.id"
-        :class="['tab-btn', { active: ui.currentTab === t.id }]"
+        class="app-tab"
+        :class="{ active: ui.currentTab === t.id }"
         @click="workspace.path && ui.setTab(t.id)"
       >
         {{ t.label }}
@@ -138,7 +140,7 @@ async function close() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
+  height: 48px;
   padding: 0 8px 0 12px;
   background-color: var(--color-bg);
   flex-shrink: 0;
@@ -215,21 +217,16 @@ async function close() {
 .open-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .open-btn:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
 
-/* ── Main tabs (absolutely centered) ── */
+/* ── Chrome-style tabs (centered on the topbar's bottom edge) ── */
 .topbar-tabs {
   position: absolute;
   left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  bottom: 0;
+  transform: translateX(-50%);
   z-index: 1;
   display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 32px;
-  padding: 3px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  align-items: flex-end;
+  gap: 0;
   transition: opacity var(--transition);
 }
 .topbar-tabs.disabled {
@@ -237,25 +234,31 @@ async function close() {
   pointer-events: none;
 }
 
-.tab-btn {
-  height: 24px;
+.app-tab {
+  display: flex;
+  align-items: center;
+  height: 30px;
   padding: 0 14px;
   font-size: 12px;
   font-weight: 600;
   font-family: var(--font-sans);
-  background: none;
+  background: color-mix(in srgb, var(--color-bg) 74%, var(--color-surface));
   border: none;
-  border-radius: calc(var(--radius-md) - 2px);
+  border-radius: 8px 8px 0 0;
   color: var(--color-text-muted);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color var(--transition), color var(--transition);
+  margin-bottom: -1px; /* reach into the content edge so the active tab fuses */
+  transition: color var(--transition), background-color var(--transition);
 }
-.tab-btn:hover { color: var(--color-text-primary); }
-.tab-btn.active {
-  background: var(--color-accent-blue);
-  color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
+.app-tab:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+/* Active tab merges with the surface-colored content panel below */
+.app-tab.active {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
 }
 
 /* ── DND / Focus pill ── */
