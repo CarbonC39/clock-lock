@@ -252,6 +252,10 @@ pub struct SessionState {
     pub last_active_at: i64,
     pub current_focus_file: Option<String>,
     pub last_summary: Option<String>,
+    #[serde(default)]
+    pub last_git_head: Option<String>,
+    #[serde(default)]
+    pub last_git_check_at: Option<i64>,
 }
 
 // ── Session State ──
@@ -264,17 +268,21 @@ pub async fn save_session_state(
 ) -> Result<(), String> {
     let pool = get_pool(&app, &workspace_hash).await?;
     sqlx::query(
-        "INSERT INTO session_state (project_hash, last_active_at, current_focus_file, last_summary)
-         VALUES (?, ?, ?, ?)
+        "INSERT INTO session_state (project_hash, last_active_at, current_focus_file, last_summary, last_git_head, last_git_check_at)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(project_hash) DO UPDATE SET
             last_active_at = excluded.last_active_at,
             current_focus_file = excluded.current_focus_file,
-            last_summary = excluded.last_summary",
+            last_summary = excluded.last_summary,
+            last_git_head = excluded.last_git_head,
+            last_git_check_at = excluded.last_git_check_at",
     )
     .bind(&workspace_hash)
     .bind(state.last_active_at)
     .bind(state.current_focus_file)
     .bind(state.last_summary)
+    .bind(state.last_git_head)
+    .bind(state.last_git_check_at)
     .execute(&pool)
     .await
     .map_err(|e| e.to_string())?;
@@ -288,7 +296,7 @@ pub async fn get_session_state(
 ) -> Result<Option<SessionState>, String> {
     let pool = get_pool(&app, &workspace_hash).await?;
     let row = sqlx::query(
-        "SELECT last_active_at, current_focus_file, last_summary FROM session_state
+        "SELECT last_active_at, current_focus_file, last_summary, last_git_head, last_git_check_at FROM session_state
          WHERE project_hash = ?",
     )
     .bind(&workspace_hash)
@@ -300,6 +308,8 @@ pub async fn get_session_state(
         last_active_at: r.get("last_active_at"),
         current_focus_file: r.get("current_focus_file"),
         last_summary: r.get("last_summary"),
+        last_git_head: r.get("last_git_head"),
+        last_git_check_at: r.get("last_git_check_at"),
     }))
 }
 

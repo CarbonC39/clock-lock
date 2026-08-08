@@ -2,6 +2,11 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { useWorkspaceStore } from "./workspaceStore";
 import { useSettingsStore } from "./settingsStore";
 import { useSupervisionStore } from "./supervisionStore";
@@ -14,6 +19,8 @@ export interface CheckinMeta {
   snoozed: boolean;
 }
 
+export type SelfInitiatedBy = "git-tracker" | "self-checkin";
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system" | "system-note" | "tool" | "checkin";
@@ -25,6 +32,47 @@ export interface ChatMessage {
   tool_call_id?: string;
   name?: string;
   checkinMeta?: CheckinMeta;
+  /** Set only on system-note messages emitted by the git-tracker / self-check-in. */
+  initiatedBy?: SelfInitiatedBy;
+}
+
+export interface GitSnapshot {
+  is_repo: boolean;
+  branch: string | null;
+  modified: number;
+  added: number;
+  deleted: number;
+  untracked: number;
+  head_short: string | null;
+  last_commit_summary: string | null;
+  last_commit_when: number | null;
+}
+
+interface CommitLine {
+  short: string;
+  summary: string;
+}
+
+interface GitTrackerPayload {
+  workspace: string;
+  count: number;
+  branch: string | null;
+  head_short: string | null;
+  commits: CommitLine[];
+}
+
+interface SelfCheckinPayload {
+  idle_minutes: number;
+  file_idle_secs: number;
+  user_idle_secs: number;
+  agent_idle_secs: number;
+}
+
+interface EventRecord {
+  id: number;
+  type: string;
+  description: string;
+  created_at: number;
 }
 
 // ── Native Tools Schema ──
@@ -105,7 +153,7 @@ const NATIVE_TOOLS = [
     function: {
       name: "get_git_status",
       description:
-        "Get the current git branch and a count of changed files (modified / added / deleted / untracked). Use for a quick progress check. Read-only.",
+        "Detailed git status. RARELY needed — a current snapshot is already in your Context. Use only when you suspect the snapshot is stale.",
       parameters: {
         type: "object",
         properties: {
@@ -288,6 +336,15 @@ function expandSlashCommand(cmd: string, workspace: ReturnType<typeof useWorkspa
   }
 }
 
+function relativeTime(unixSecs: number | null): string {
+  if (!unixSecs) return "unknown";
+  const diff = Math.floor(Date.now() / 1000) - unixSecs;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
 export const useAgentStore = defineStore("agent", () => {
   const messages = ref<ChatMessage[]>([]);
   const state = ref<AgentState>("idle");
@@ -303,6 +360,8 @@ export const useAgentStore = defineStore("agent", () => {
   let msgCounter = 0;
   let lastSummarizeAt = 0;
   let unlistenFsChange: (() => void) | null = null;
+  let unlistenGit: (() => void) | null = null;
+  let unlistenSelfCheckin: (() => void) | null = null;
   const MAX_TOOL_ROUNDS = 5;
 
   async function summarizeConversation() {
@@ -385,6 +444,8 @@ export const useAgentStore = defineStore("agent", () => {
       state.value = "happy";
       happyTimeoutId = setTimeout(() => { if (state.value === "happy") state.value = "idle"; happyTimeoutId = null; }, 3000);
     });
+
+    await bindSelfEvents();
   }
 
   async function persistMessage(msg: ChatMessage) {
@@ -415,10 +476,23 @@ export const useAgentStore = defineStore("agent", () => {
     return parts.join(" ");
   }
 
+  async function getGitContextLine(): Promise<string | null> {
+    const workspace = useWorkspaceStore();
+    if (!workspace.path) return null;
+    try {
+      const snap = await invoke<GitSnapshot>("get_git_snapshot", { workspacePath: workspace.path });
+      if (!snap.is_repo) return null;
+      return `* Git: ${snap.branch ?? "?"} head=${snap.head_short ?? "?"} · ~M${snap.modified} +A${snap.added} -D${snap.deleted} ?U${snap.untracked} · last: "${snap.last_commit_summary ?? ""}" (${relativeTime(snap.last_commit_when)})`;
+    } catch {
+      return null;
+    }
+  }
+
   async function buildSystemPrompt(): Promise<string> {
     const workspace = useWorkspaceStore();
     const settings = useSettingsStore();
     const activity = buildRecentActivitySummary();
+    const gitLine = await getGitContextLine();
     const personality = settings.settings.personality.trim();
     const personalitySection = personality
       ? `\n# Personality\n\n${personality}\n`
@@ -444,7 +518,7 @@ A per-turn Context also provides:
 
 * workspace path
 * active file
-* git snapshot: branch, changed-file counts, last commit
+* git snapshot (when in a repo — see Context)
 * recent activity summary
 Use \`workspace_path\` for every workspace tool call.
 
@@ -474,6 +548,11 @@ Before discussing tracked tasks, progress, or current project status, read \`hom
 Before making claims about code or files, inspect the relevant files.
 Use git status/diff when actual repository changes matter.
 When returning after activity or when the user asks about progress, compare the current git/context state with the last known state and mention meaningful changes briefly.
+## Git snapshot is in your Context
+
+A git snapshot (branch, counts, last commit) is already in the Context above.
+Do NOT call \`get_git_status\` for a routine check — that information is already provided.
+Only call \`get_git_diff\` when you need to inspect specific hunks of a change.
 ## Maintain \`home.md\`
 Update it only when useful:
 
@@ -530,7 +609,7 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
 
 * Workspace: ${workspace.name || "none"}
 * Workspace path: ${workspace.path || "none"}
-* Active file: ${workspace.selectedFilePath || "none"}${activity ? `\n- Recent activity: ${activity}` : ""}`;
+* Active file: ${workspace.selectedFilePath || "none"}${activity ? `\n- Recent activity: ${activity}` : ""}${gitLine ? `\n${gitLine}` : ""}`;
   }
 
   function injectWorkspace(args: Record<string, any>): Record<string, any> {
@@ -545,37 +624,9 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
     return args;
   }
 
-  async function sendMessage(text: string) {
-    if (!text.trim() || isBusy.value) return;
+  async function buildApiMessages(userText: string): Promise<any[]> {
     const settings = useSettingsStore();
-    const workspace = useWorkspaceStore();
-    if (!settings.settings.base_url) { pushNote("Configure AI in Settings first."); return; }
-
-    const trimmed = text.trim();
-    let userText = trimmed;
-    if (trimmed.startsWith("/")) {
-      const expanded = expandSlashCommand(trimmed, workspace);
-      if (expanded) userText = expanded;
-      else if (trimmed === "/focus") {
-        const sv = useSupervisionStore();
-        sv.setDnd(!sv.dnd);
-        pushNote(sv.dnd ? "Focus mode ON." : "Focus mode OFF.");
-        return;
-      } else if (trimmed === "/help") {
-        pushNote("Available: /status, /remind, /review, /scan, /summarize, /focus");
-        return;
-      }
-    }
-
-    isBusy.value = true;
-    state.value = "thinking";
-    if (happyTimeoutId) { clearTimeout(happyTimeoutId); happyTimeoutId = null; }
-
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed, timestamp: Date.now() };
-    messages.value.push(userMsg);
-    persistMessage(userMsg);
-
-    const apiMessages: any[] = [
+    return [
       { role: "system", content: await buildSystemPrompt() },
       ...messages.value
         .slice(0, -1)
@@ -599,6 +650,47 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
         })),
       { role: "user", content: userText },
     ];
+  }
+
+  /** For self-initiated runs: the expanded instruction sits right after system
+   * (before history) and is NOT pushed to the visible message list. */
+  async function buildApiMessagesWithHiddenUser(payload: string): Promise<any[]> {
+    const settings = useSettingsStore();
+    return [
+      { role: "system", content: await buildSystemPrompt() },
+      { role: "user", content: payload },
+      ...messages.value
+        .filter(m => {
+          if (!["user", "assistant", "system", "tool"].includes(m.role)) return false;
+          const isDbLoaded = m.id.startsWith("db-");
+          if (isDbLoaded) {
+            if (m.role === "tool" && !m.tool_call_id) return false;
+            if (m.role === "assistant" && !m.content?.trim() && !m.tool_calls) return false;
+          }
+          return true;
+        })
+        .slice(-settings.settings.max_context_messages)
+        .map(m => ({
+          role: m.role,
+          content: m.content || "",
+          ...(m.tool_calls   ? { tool_calls:   m.tool_calls }   : {}),
+          ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+          ...(m.name         ? { name:         m.name }         : {}),
+        })),
+    ];
+  }
+
+  interface RunToolLoopOptions {
+    endState: AgentState;
+    markCounter: boolean;
+    sleepyLingerMs?: number;
+  }
+
+  /** The shared SSE + tool-calling loop used by both user messages and self-initiated
+   * prompts (git-update / self-check-in). */
+  async function runToolLoop(apiMessages: any[], opts: RunToolLoopOptions) {
+    const settings = useSettingsStore();
+    const workspace = useWorkspaceStore();
 
     cancelRequested = false;
     let success = true;
@@ -704,20 +796,94 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
       }
     }
 
-    state.value = success ? "happy" : "idle";
+    state.value = success ? opts.endState : "idle";
     if (success) {
-      msgCounter++;
-      if (msgCounter >= 5) {
-        msgCounter = 0;
-        summarizeConversation().catch(console.warn);
+      if (opts.markCounter) {
+        msgCounter++;
+        if (msgCounter >= 5) {
+          msgCounter = 0;
+          summarizeConversation().catch(console.warn);
+        }
       }
-      happyTimeoutId = setTimeout(() => { if (state.value === "happy") state.value = "idle"; happyTimeoutId = null; }, 4000);
+      const lingerMs = opts.sleepyLingerMs ?? 4000;
+      happyTimeoutId = setTimeout(() => { if (state.value === opts.endState) state.value = "idle"; happyTimeoutId = null; }, lingerMs);
     }
     isBusy.value = false;
   }
 
+  async function sendMessage(text: string) {
+    if (!text.trim() || isBusy.value) return;
+    const settings = useSettingsStore();
+    const workspace = useWorkspaceStore();
+    if (!settings.settings.base_url) { pushNote("Configure AI in Settings first."); return; }
+
+    const trimmed = text.trim();
+    let userText = trimmed;
+    if (trimmed.startsWith("/")) {
+      const expanded = expandSlashCommand(trimmed, workspace);
+      if (expanded) userText = expanded;
+      else if (trimmed === "/focus") {
+        const sv = useSupervisionStore();
+        sv.setDnd(!sv.dnd);
+        pushNote(sv.dnd ? "Focus mode ON." : "Focus mode OFF.");
+        return;
+      } else if (trimmed === "/help") {
+        pushNote("Available: /status, /remind, /review, /scan, /summarize, /focus");
+        return;
+      }
+    }
+
+    isBusy.value = true;
+    state.value = "thinking";
+    if (happyTimeoutId) { clearTimeout(happyTimeoutId); happyTimeoutId = null; }
+
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed, timestamp: Date.now() };
+    messages.value.push(userMsg);
+    persistMessage(userMsg);
+
+    const apiMessages = await buildApiMessages(userText);
+    await runToolLoop(apiMessages, { endState: "happy", markCounter: true });
+    reportAgentActivity();
+  }
+
+  async function promptSelf(kind: "git-update" | "self-checkin", label: string, payload: string) {
+    if (isBusy.value) return;
+    const settings = useSettingsStore();
+    if (!settings.settings.base_url) {
+      pushNote("Self check-in needs an AI backend. Configure one in Settings.");
+      return;
+    }
+
+    pushNote(label, { initiatedBy: kind === "git-update" ? "git-tracker" : "self-checkin" });
+    isBusy.value = true;
+    state.value = "thinking";
+    if (happyTimeoutId) { clearTimeout(happyTimeoutId); happyTimeoutId = null; }
+
+    const apiMessages = await buildApiMessagesWithHiddenUser(payload);
+    await runToolLoop(apiMessages, {
+      endState: kind === "git-update" ? "happy" : "sleepy",
+      markCounter: false,
+      sleepyLingerMs: kind === "self-checkin" ? 5000 : undefined,
+    });
+    reportAgentActivity();
+
+    // Surface the result via an OS notification using the first sentence.
+    const last = messages.value[messages.value.length - 1];
+    if (last?.role === "assistant" && last.content) {
+      pushSystemNotificationForSelf(last.content);
+    }
+  }
+
   function stopGeneration() { cancelRequested = true; }
-  function pushNote(text: string) { messages.value.push({ id: crypto.randomUUID(), role: "system-note", content: text, timestamp: Date.now() }); }
+  function pushNote(text: string, opts?: { initiatedBy?: SelfInitiatedBy }) {
+    messages.value.push({
+      id: crypto.randomUUID(),
+      role: "system-note",
+      content: text,
+      timestamp: Date.now(),
+      ...(opts?.initiatedBy ? { initiatedBy: opts.initiatedBy } : {}),
+    });
+  }
   function pushCheckin(text: string, meta: { idleMinutes: number; topTodo: string | null }) {
     messages.value.push({
       id: crypto.randomUUID(),
@@ -732,9 +898,110 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
     if (msg?.checkinMeta) msg.checkinMeta.snoozed = true;
   }
   function setState(s: AgentState) { state.value = s; }
+
+  function buildGitUpdateInstruction(p: GitTrackerPayload): string {
+    const commitList = p.commits.map(c => `- ${c.short} ${c.summary}`).join("\n") || "(none)";
+    return [
+      `You're picking up ${p.count} new commit${p.count > 1 ? "s" : ""} on branch ${p.branch ?? "?"}.
+Head: ${p.head_short ?? "?"}
+Recent commits since my last check:
+${commitList}
+
+Do this:
+1. Optionally call \`get_git_diff\` once if some working-tree change makes you curious — don't dump the diff back to the user.
+2. Decide whether \`home.md\` needs updating:
+   - Overview: only if durable architecture/direction actually changed.
+   - Todos: mark/adjust if a commit clearly completes one.
+   - Notes: one short line capturing what these commits actually moved forward.
+3. Give a one-sentence emotional reaction (encouragement / curiosity / mild roasting) — not generic.
+Don't re-summarize commits back to me — I already listed them. Don't force changes if nothing meaningful shifted.`
+    ].join("\n");
+  }
+
+  async function buildSelfCheckinInstruction(p: SelfCheckinPayload, workspace: ReturnType<typeof useWorkspaceStore>): Promise<string> {
+    const snapshot = await invoke<GitSnapshot>("get_git_snapshot", { workspacePath: workspace.path }).catch(() => null);
+    const snapLine = snapshot?.is_repo
+      ? `git ${snapshot.branch} head=${snapshot.head_short} last="${snapshot.last_commit_summary ?? ""}"`
+      : "(not a git repo)";
+    const topTodo = workspace.homeData?.todos.find(t => !t.done)?.text ?? null;
+    const focusFile = recentFocus.value?.file ?? workspace.sessionState?.current_focus_file?.split(/[\\/]/).pop() ?? null;
+    let eventDigest = "";
+    if (workspace.hash) {
+      const evts = await invoke<EventRecord[]>("get_events", { workspaceHash: workspace.hash, limit: 20 }).catch(() => []);
+      if (evts.length) eventDigest = `recent events (${evts.length}):\n` + evts.slice(0, 8).map(e => `- ${e.type}: ${e.description}`).join("\n");
+    }
+    return [
+      `You're checking in on the user. It's been quiet — no file changes, no user activity, no agent output for about ${p.idle_minutes} min.
+Context:
+- workspace: ${workspace.name}
+- ${snapLine}
+- top todo: ${topTodo ?? "(none open)"}
+- last touched file: ${focusFile ?? "(unknown)"}
+${eventDigest}
+
+Do this:
+1. Decide: is there something small to gently offer, or is the user just heads-down? Don't push.
+2. Write 1–2 sentences caring check-in. Naturally reference at most ONE concrete detail (a file, a todo, or the calm). No bullet points, no guilt, no list-making.
+3. \`append_notes\` only when something genuinely worth keeping happened (e.g. a finished todo became obvious from git) — at most ONE short line. Default: don't add notes to avoid clutter.
+Don't \`read_home_md\` unless you genuinely need more than the top todo I gave you. Don't call \`get_git_status\` — a snapshot is above.`
+    ].join("\n");
+  }
+
+  async function pushSystemNotificationForSelf(assistantText: string) {
+    try {
+      let granted = await isPermissionGranted();
+      if (!granted) granted = (await requestPermission()) === "granted";
+      if (granted) {
+        const firstSentence = assistantText.split(/(?<=[.!?])\s/)[0].slice(0, 200);
+        sendNotification({ title: "Clock Lock · your partner", body: firstSentence });
+      }
+    } catch { /* not available */ }
+  }
+
+  function reportAgentActivity() {
+    invoke("report_agent_activity").catch(() => {});
+  }
+
+  async function bindSelfEvents() {
+    unlistenGit?.();
+    unlistenSelfCheckin?.();
+
+    unlistenGit = await listen<GitTrackerPayload>("git-tracker-tick", async (e) => {
+      const sv = useSupervisionStore();
+      if (sv.dnd) return;
+      if (isBusy.value) return;
+      if (Date.now() < sv.gitSnoozeUntil) return;
+
+      const headline = `📋 ${e.payload.count} commits since I last checked — taking a look…`;
+      const payload = buildGitUpdateInstruction(e.payload);
+      await promptSelf("git-update", headline, payload);
+    });
+
+    unlistenSelfCheckin = await listen<SelfCheckinPayload>("agent-self-checkin", async (e) => {
+      const sv = useSupervisionStore();
+      if (sv.dnd || isBusy.value) return;
+      if (Date.now() < sv.snoozeUntil) { sv.reportActivity(); return; }
+
+      const settings = useSettingsStore();
+      if (!settings.settings.base_url) {
+        pushNote("Self check-in needs an AI backend. Configure one in Settings.");
+        return;
+      }
+
+      const workspace = useWorkspaceStore();
+      const headline = `🤖 It's been quiet for ${e.payload.idle_minutes} min — checking in on you…`;
+      const payload = await buildSelfCheckinInstruction(e.payload, workspace);
+      await promptSelf("self-checkin", headline, payload);
+    });
+  }
+
   function clear() {
     unlistenFsChange?.();
     unlistenFsChange = null;
+    unlistenGit?.();
+    unlistenGit = null;
+    unlistenSelfCheckin?.();
+    unlistenSelfCheckin = null;
     msgCounter = 0;
     const workspace = useWorkspaceStore();
     if (workspace.hash && convId.value) invoke("clear_conversation", { workspaceHash: workspace.hash, convId: convId.value }).catch(console.warn);
@@ -743,5 +1010,5 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
     isBusy.value = false;
   }
 
-  return { messages, state, isBusy, currentTool, recentFocus, sendMessage, stopGeneration, pushNote, pushCheckin, snoozeCheckin, setState, clear, loadConversation };
+  return { messages, state, isBusy, currentTool, recentFocus, sendMessage, promptSelf, stopGeneration, pushNote, pushCheckin, snoozeCheckin, setState, clear, loadConversation };
 });

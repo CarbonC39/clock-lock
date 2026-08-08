@@ -1,14 +1,15 @@
 mod commands;
 mod db;
+mod git_tracker;
 mod supervision;
 mod watcher;
 
 use commands::agent::chat_stream;
 use commands::fs::{
-    add_todo_cmd, apply_diff_patch, delete_todo, ensure_home_md, get_annotations, get_git_status,
-    get_last_workspace, get_workspace_hash, list_dir, open_in_explorer, read_file, read_home,
-    read_image_b64, save_annotation, save_home, search_files, set_last_workspace, toggle_todo,
-    write_file, write_file_with_backup,
+    add_todo_cmd, apply_diff_patch, delete_todo, ensure_home_md, get_annotations, get_git_snapshot,
+    get_git_status, get_last_workspace, get_workspace_hash, list_dir, open_in_explorer, read_file,
+    read_home, read_image_b64, save_annotation, save_home, search_files, set_last_workspace,
+    toggle_todo, write_file, write_file_with_backup,
 };
 use commands::memory::{
     clear_conversation, ensure_conversation, get_events, get_session_state, load_messages,
@@ -17,8 +18,11 @@ use commands::memory::{
 use commands::settings::{get_settings, save_settings};
 use commands::shell::{classify_command, run_command};
 use commands::tools::invoke_tool;
+use git_tracker::{reset_git_tracker, GitTrackerState};
 use supervision::{
-    configure_supervision, report_activity, start_supervision, stop_supervision,
+    configure_git_tracking, configure_supervision, configure_supervision_self_checkin,
+    configure_supervision_workspace, report_activity, report_agent_activity,
+    report_file_activity, set_git_tracker_snooze, start_supervision, stop_supervision,
     SupervisionState,
 };
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -39,6 +43,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(WatcherState::new())
         .manage(SupervisionState::new())
+        .manage(GitTrackerState::new())
         .manage(DbPoolCache(std::sync::Mutex::new(std::collections::HashMap::new())))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -60,6 +65,7 @@ pub fn run() {
             toggle_todo,
             delete_todo,
             get_git_status,
+            get_git_snapshot,
             save_annotation,
             get_annotations,
             get_last_workspace,
@@ -91,9 +97,17 @@ pub fn run() {
             save_session_state,
             // supervision
             report_activity,
+            report_file_activity,
+            report_agent_activity,
             configure_supervision,
+            configure_supervision_workspace,
+            configure_supervision_self_checkin,
+            configure_git_tracking,
+            set_git_tracker_snooze,
             start_supervision,
             stop_supervision,
+            // git tracker
+            reset_git_tracker,
             // tools
             invoke_tool,
         ])

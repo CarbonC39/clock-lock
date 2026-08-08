@@ -14,6 +14,12 @@ export interface AgentSettings {
   startup_mode: "window" | "minimized";
   close_behavior: "close" | "hide";
   home_md_mode: "appdata" | "workspace";
+  git_tracking_enabled: boolean;
+  git_tracking_commit_threshold: number;
+  git_tracking_min_interval_minutes: number;
+  agent_self_checkin_enabled: boolean;
+  agent_self_checkin_idle_minutes: number;
+  agent_self_checkin_min_interval_minutes: number;
 }
 
 const CLOUD_DEFAULTS = {
@@ -38,6 +44,12 @@ export const useSettingsStore = defineStore("settings", () => {
     startup_mode: "window",
     close_behavior: "close",
     home_md_mode: "appdata",
+    git_tracking_enabled: false,
+    git_tracking_commit_threshold: 5,
+    git_tracking_min_interval_minutes: 10,
+    agent_self_checkin_enabled: false,
+    agent_self_checkin_idle_minutes: 25,
+    agent_self_checkin_min_interval_minutes: 30,
   });
 
   const loaded = ref(false);

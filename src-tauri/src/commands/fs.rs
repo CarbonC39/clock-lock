@@ -50,13 +50,13 @@ fn is_placeholder(s: &str) -> bool {
 fn parse_todos(body: &str) -> Vec<TodoItem> {
     body.lines().filter_map(|l| {
         let l = l.trim();
-        if let Some(rest) = l.strip_prefix("- [ ] ") {
-            Some(TodoItem { text: rest.to_string(), done: false })
-        } else if let Some(rest) = l.strip_prefix("- [x] ").or_else(|| l.strip_prefix("- [X] ")) {
-            Some(TodoItem { text: rest.to_string(), done: true })
-        } else {
-            None
-        }
+        l.strip_prefix("- [ ] ")
+            .map(|rest| TodoItem { text: rest.to_string(), done: false })
+            .or_else(|| {
+                l.strip_prefix("- [x] ")
+                    .or_else(|| l.strip_prefix("- [X] "))
+                    .map(|rest| TodoItem { text: rest.to_string(), done: true })
+            })
     }).collect()
 }
 
@@ -137,6 +137,19 @@ pub struct GitStatus {
     pub added: u32,
     pub deleted: u32,
     pub untracked: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GitSnapshot {
+    pub is_repo: bool,
+    pub branch: Option<String>,
+    pub modified: u32,
+    pub added: u32,
+    pub deleted: u32,
+    pub untracked: u32,
+    pub head_short: Option<String>,           // 前 8 位
+    pub last_commit_summary: Option<String>,  // 截到 80 字符
+    pub last_commit_when: Option<i64>,        // unix seconds
 }
 
 // Binary extensions we won't try to read as text
@@ -358,28 +371,15 @@ pub fn ensure_home_md(app: tauri::AppHandle, workspace_path: String) -> Result<(
     Ok((path_str, content))
 }
 
-#[tauri::command]
-pub fn get_git_status(workspace_path: String) -> Result<GitStatus, String> {
-    let workspace = Path::new(&workspace_path);
-    let Ok(repo) = git2::Repository::open(workspace) else {
-        return Ok(GitStatus {
-            is_repo: false,
-            branch: None,
-            modified: 0,
-            added: 0,
-            deleted: 0,
-            untracked: 0,
-        });
-    };
-
-    let branch = repo
-        .head()
-        .ok()
-        .and_then(|h| h.shorthand().map(str::to_string));
-
+/// Shared counting logic for git working-tree status. Returns the four counts
+/// (modified, added, deleted, untracked). Any failure yields all zeros so both
+/// `get_git_status` and `get_git_snapshot` degrade gracefully.
+fn count_statuses(repo: &git2::Repository) -> (u32, u32, u32, u32) {
     let mut opts = git2::StatusOptions::new();
     opts.include_untracked(true);
-    let statuses = repo.statuses(Some(&mut opts)).map_err(|e| e.to_string())?;
+    let Ok(statuses) = repo.statuses(Some(&mut opts)) else {
+        return (0, 0, 0, 0);
+    };
 
     let mut modified = 0u32;
     let mut added = 0u32;
@@ -404,6 +404,30 @@ pub fn get_git_status(workspace_path: String) -> Result<GitStatus, String> {
         }
     }
 
+    (modified, added, deleted, untracked)
+}
+
+#[tauri::command]
+pub fn get_git_status(workspace_path: String) -> Result<GitStatus, String> {
+    let workspace = Path::new(&workspace_path);
+    let Ok(repo) = git2::Repository::open(workspace) else {
+        return Ok(GitStatus {
+            is_repo: false,
+            branch: None,
+            modified: 0,
+            added: 0,
+            deleted: 0,
+            untracked: 0,
+        });
+    };
+
+    let branch = repo
+        .head()
+        .ok()
+        .and_then(|h| h.shorthand().map(str::to_string));
+
+    let (modified, added, deleted, untracked) = count_statuses(&repo);
+
     Ok(GitStatus {
         is_repo: true,
         branch,
@@ -411,6 +435,60 @@ pub fn get_git_status(workspace_path: String) -> Result<GitStatus, String> {
         added,
         deleted,
         untracked,
+    })
+}
+
+#[tauri::command]
+pub fn get_git_snapshot(workspace_path: String) -> Result<GitSnapshot, String> {
+    let workspace = Path::new(&workspace_path);
+    let empty = GitSnapshot {
+        is_repo: false,
+        branch: None,
+        modified: 0,
+        added: 0,
+        deleted: 0,
+        untracked: 0,
+        head_short: None,
+        last_commit_summary: None,
+        last_commit_when: None,
+    };
+
+    let Ok(repo) = git2::Repository::open(workspace) else {
+        return Ok(empty);
+    };
+
+    let branch = repo
+        .head()
+        .ok()
+        .and_then(|h| h.shorthand().map(str::to_string));
+
+    let (modified, added, deleted, untracked) = count_statuses(&repo);
+
+    // Any step of the commit lookup failing just yields None fields — never an error.
+    let head = repo.head().ok();
+    let head_short = head
+        .as_ref()
+        .and_then(|h| h.peel_to_commit().ok())
+        .map(|c| c.id().to_string().chars().take(8).collect());
+    let last_commit_summary = head
+        .as_ref()
+        .and_then(|h| h.peel_to_commit().ok())
+        .and_then(|c| c.summary().map(|s| s.chars().take(80).collect()));
+    let last_commit_when = head
+        .as_ref()
+        .and_then(|h| h.peel_to_commit().ok())
+        .map(|c| c.time().seconds());
+
+    Ok(GitSnapshot {
+        is_repo: true,
+        branch,
+        modified,
+        added,
+        deleted,
+        untracked,
+        head_short,
+        last_commit_summary,
+        last_commit_when,
     })
 }
 
@@ -448,9 +526,6 @@ pub fn get_git_diff(workspace_path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn apply_diff_patch(path: String, diff_text: String) -> Result<(), String> {
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-    
     // Simple robust patching for unified diffs
     // Note: In a real production app, we'd use a library like `patch`,
     // but for surgical edits, we can track context lines.
@@ -475,11 +550,8 @@ pub fn apply_diff_patch(path: String, diff_text: String) -> Result<(), String> {
     for line in patch_lines {
         if line.starts_with("@@") { hunk_started = true; continue; }
         if !hunk_started { continue; }
-        if line.starts_with('+') {
-            applied_content.push_str(&line[1..]);
-            applied_content.push('\n');
-        } else if line.starts_with(' ') {
-            applied_content.push_str(&line[1..]);
+        if let Some(body) = line.strip_prefix('+').or_else(|| line.strip_prefix(' ')) {
+            applied_content.push_str(body);
             applied_content.push('\n');
         }
         // Skip '-' lines

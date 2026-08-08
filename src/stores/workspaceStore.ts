@@ -17,6 +17,8 @@ export interface SessionState {
   last_active_at: number;
   current_focus_file: string | null;
   last_summary: string | null;
+  last_git_head?: string | null;
+  last_git_check_at?: number | null;
 }
 
 export interface TodoItem {
@@ -104,6 +106,10 @@ export const useWorkspaceStore = defineStore("workspace", () => {
 
     invoke("start_watching", { workspacePath: dirPath }).catch(console.warn);
     invoke("set_last_workspace", { workspacePath: dirPath }).catch(console.warn);
+    // Tell supervision which workspace is active (resets idle signals) and
+    // establish the git-tracking baseline for the newly loaded repo.
+    invoke("configure_supervision_workspace", { workspacePath: dirPath }).catch(console.warn);
+    invoke("reset_git_tracker", { workspacePath: dirPath }).catch(console.warn);
 
     // Listen for external edits or agent changes from other windows
     unlistenHomeMd = await listen("home-md-changed", async () => {
@@ -125,6 +131,8 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       last_active_at: Math.floor(Date.now() / 1000),
       current_focus_file: selectedFilePath.value,
       last_summary: sessionState.value?.last_summary || null,
+      last_git_head: sessionState.value?.last_git_head ?? null,
+      last_git_check_at: sessionState.value?.last_git_check_at ?? null,
       ...state,
     };
     sessionState.value = newState;

@@ -35,6 +35,7 @@ pub struct ApiMessage {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn chat_stream(
     app: tauri::AppHandle,
     msg_id: String,

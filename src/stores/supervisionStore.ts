@@ -183,6 +183,15 @@ export const useSupervisionStore = defineStore("supervision", () => {
   const snoozeUntil = ref<number>(
     Number(localStorage.getItem("sv-snooze-until")) || 0
   );
+  // git-tracker keeps its own snooze key so a "Snooze 1h" on a commit update
+  // never suppresses the (unrelated) idle check-in.
+  const gitSnoozeUntil = ref<number>(
+    Number(localStorage.getItem("sv-git-snooze-until")) || 0
+  );
+  // What triggered the last snooze — surfaced in UI badges. Reserved for a
+  // future "agent chat" path that parses "I'm off this afternoon".
+  type SnoozeReason = "user" | "git-tracker" | "agent-chat" | "manual";
+  const snoozeReason = ref<SnoozeReason>("manual");
   // Whether to spend the occasional (≤1/day) live, grounded check-in. Off → the
   // companion only ever draws from the local phrase pool (zero API calls).
   const checkinGrounded = ref(localStorage.getItem("sv-checkin-grounded-enabled") !== "false");
@@ -204,10 +213,42 @@ export const useSupervisionStore = defineStore("supervision", () => {
     invoke("configure_supervision", { idleHours: idleHours.value, dnd: dnd.value }).catch(() => {});
   }
 
-  function setSnooze(durationMs: number) {
+  function setSnooze(durationMs: number, reason: SnoozeReason = "manual") {
     const until = Date.now() + durationMs;
-    snoozeUntil.value = until;
-    localStorage.setItem("sv-snooze-until", String(until));
+    snoozeReason.value = reason;
+    if (reason === "git-tracker") {
+      gitSnoozeUntil.value = until;
+      localStorage.setItem("sv-git-snooze-until", String(until));
+      invoke("set_git_tracker_snooze", { durationMs }).catch(() => {});
+    } else {
+      snoozeUntil.value = until;
+      localStorage.setItem("sv-snooze-until", String(until));
+    }
+  }
+
+  /** Snooze just the git tracker (writes its own key + syncs the backend). */
+  function setGitTrackerSnooze(durationMs: number) {
+    const until = Date.now() + durationMs;
+    snoozeReason.value = "git-tracker";
+    gitSnoozeUntil.value = until;
+    localStorage.setItem("sv-git-snooze-until", String(until));
+    invoke("set_git_tracker_snooze", { durationMs }).catch(() => {});
+  }
+
+  function setGitTracking(enabled: boolean, threshold: number, minInterval: number) {
+    invoke("configure_git_tracking", {
+      enabled,
+      threshold,
+      minIntervalMinutes: minInterval,
+    }).catch(() => {});
+  }
+
+  function setSelfCheckin(enabled: boolean, idleMinutes: number, minInterval: number) {
+    invoke("configure_supervision_self_checkin", {
+      enabled,
+      idleMinutes,
+      minIntervalMinutes: minInterval,
+    }).catch(() => {});
   }
 
   function reportActivity() {
@@ -292,10 +333,15 @@ export const useSupervisionStore = defineStore("supervision", () => {
     isRunning,
     idleHours,
     snoozeUntil,
+    gitSnoozeUntil,
+    snoozeReason,
     checkinGrounded,
     setDnd,
     setIdleHours,
     setSnooze,
+    setGitTrackerSnooze,
+    setGitTracking,
+    setSelfCheckin,
     setCheckinGrounded,
     reportActivity,
     start,

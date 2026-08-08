@@ -5,11 +5,13 @@ import { getCurrentWindow, LogicalSize, PhysicalSize, PhysicalPosition } from "@
 import { useUiStore } from "./stores/uiStore";
 import { useWorkspaceStore } from "./stores/workspaceStore";
 import { useSettingsStore } from "./stores/settingsStore";
+import { useSupervisionStore } from "./stores/supervisionStore";
 import WidgetWindow from "./components/WidgetWindow.vue";
 
 const ui = useUiStore();
 const workspace = useWorkspaceStore();
 const settings = useSettingsStore();
+const supervision = useSupervisionStore();
 
 const widgetMode = ref(false);
 const appWindow = getCurrentWindow();
@@ -101,6 +103,18 @@ provide("toggleWidget", toggleWidget);
 onMounted(async () => {
   ui.initTheme();
   await settings.load();
+  // Push persisted settings.json to the backend so git tracking / self check-in
+  // thresholds take effect at startup without re-toggling in Settings.
+  supervision.setGitTracking(
+    settings.settings.git_tracking_enabled,
+    settings.settings.git_tracking_commit_threshold,
+    settings.settings.git_tracking_min_interval_minutes
+  );
+  supervision.setSelfCheckin(
+    settings.settings.agent_self_checkin_enabled,
+    settings.settings.agent_self_checkin_idle_minutes,
+    settings.settings.agent_self_checkin_min_interval_minutes
+  );
   if (settings.settings.startup_mode === "minimized") {
     appWindow.minimize().catch(() => {});
   }

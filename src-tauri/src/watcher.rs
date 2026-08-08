@@ -63,6 +63,14 @@ pub fn start_watching(app: AppHandle, workspace_path: String) -> Result<(), Stri
         *last = Instant::now();
         let path = changed.map(|p| p.to_string_lossy().to_string());
         let _ = app_clone.emit("fs-change", FsChangePayload { path });
+
+        // Update the supervision file-activity timestamp so the self-check-in
+        // "silent" signal resets on any real file change. try_state guards the
+        // early-setup window before SupervisionState is managed.
+        if let Some(sv) = app_clone.try_state::<crate::supervision::SupervisionState>() {
+            *sv.last_file_change.lock().unwrap() = Instant::now();
+        }
+
         // Notify all windows when home.md changes (e.g., external editor edit)
         if event.paths.iter().any(|p| p.file_name().map(|n| n == "home.md").unwrap_or(false)) {
             let _ = app_clone.emit("home-md-changed", ());

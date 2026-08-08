@@ -12,6 +12,10 @@ fn default_shell_path() -> String {
 fn default_startup_mode() -> String { "window".into() }
 fn default_close_behavior() -> String { "close".into() }
 fn default_home_md_mode() -> String { "appdata".into() }
+fn default_git_threshold() -> u32 { 5 }
+fn default_git_min_interval() -> u32 { 10 }
+fn default_self_checkin_idle() -> u32 { 25 }
+fn default_self_checkin_min_interval() -> u32 { 30 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AgentSettings {
@@ -32,6 +36,18 @@ pub struct AgentSettings {
     pub close_behavior: String,
     #[serde(default = "default_home_md_mode")]
     pub home_md_mode: String,
+    #[serde(default)]
+    pub git_tracking_enabled: bool,
+    #[serde(default = "default_git_threshold")]
+    pub git_tracking_commit_threshold: u32,
+    #[serde(default = "default_git_min_interval")]
+    pub git_tracking_min_interval_minutes: u32,
+    #[serde(default)]
+    pub agent_self_checkin_enabled: bool,
+    #[serde(default = "default_self_checkin_idle")]
+    pub agent_self_checkin_idle_minutes: u32,
+    #[serde(default = "default_self_checkin_min_interval")]
+    pub agent_self_checkin_min_interval_minutes: u32,
 }
 
 impl Default for AgentSettings {
@@ -48,6 +64,12 @@ impl Default for AgentSettings {
             startup_mode: "window".into(),
             close_behavior: "close".into(),
             home_md_mode: "appdata".into(),
+            git_tracking_enabled: false,
+            git_tracking_commit_threshold: 5,
+            git_tracking_min_interval_minutes: 10,
+            agent_self_checkin_enabled: false,
+            agent_self_checkin_idle_minutes: 25,
+            agent_self_checkin_min_interval_minutes: 30,
         }
     }
 }
@@ -112,6 +134,18 @@ struct StoredSettings {
     close_behavior: String,
     #[serde(default = "default_home_md_mode")]
     home_md_mode: String,
+    #[serde(default)]
+    git_tracking_enabled: bool,
+    #[serde(default = "default_git_threshold")]
+    git_tracking_commit_threshold: u32,
+    #[serde(default = "default_git_min_interval")]
+    git_tracking_min_interval_minutes: u32,
+    #[serde(default)]
+    agent_self_checkin_enabled: bool,
+    #[serde(default = "default_self_checkin_idle")]
+    agent_self_checkin_idle_minutes: u32,
+    #[serde(default = "default_self_checkin_min_interval")]
+    agent_self_checkin_min_interval_minutes: u32,
 }
 
 #[tauri::command]
@@ -143,6 +177,12 @@ pub fn get_settings(app: tauri::AppHandle) -> AgentSettings {
         startup_mode: stored.startup_mode,
         close_behavior: stored.close_behavior,
         home_md_mode: stored.home_md_mode,
+        git_tracking_enabled: stored.git_tracking_enabled,
+        git_tracking_commit_threshold: stored.git_tracking_commit_threshold,
+        git_tracking_min_interval_minutes: stored.git_tracking_min_interval_minutes,
+        agent_self_checkin_enabled: stored.agent_self_checkin_enabled,
+        agent_self_checkin_idle_minutes: stored.agent_self_checkin_idle_minutes,
+        agent_self_checkin_min_interval_minutes: stored.agent_self_checkin_min_interval_minutes,
     }
 }
 
@@ -162,6 +202,12 @@ pub fn save_settings(app: tauri::AppHandle, settings: AgentSettings) -> Result<(
         startup_mode: settings.startup_mode,
         close_behavior: settings.close_behavior,
         home_md_mode: settings.home_md_mode,
+        git_tracking_enabled: settings.git_tracking_enabled,
+        git_tracking_commit_threshold: settings.git_tracking_commit_threshold,
+        git_tracking_min_interval_minutes: settings.git_tracking_min_interval_minutes,
+        agent_self_checkin_enabled: settings.agent_self_checkin_enabled,
+        agent_self_checkin_idle_minutes: settings.agent_self_checkin_idle_minutes,
+        agent_self_checkin_min_interval_minutes: settings.agent_self_checkin_min_interval_minutes,
     };
     let json = serde_json::to_string_pretty(&stored).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())

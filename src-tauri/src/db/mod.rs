@@ -91,12 +91,29 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), String> {
             project_hash TEXT PRIMARY KEY,
             last_active_at INTEGER NOT NULL DEFAULT (unixepoch()),
             current_focus_file TEXT,
-            last_summary TEXT
+            last_summary TEXT,
+            last_git_head TEXT,
+            last_git_check_at INTEGER
         )",
     )
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
+
+    // Idempotent migration for databases created before the git-tracking columns.
+    // SQLite has no standard "ADD COLUMN IF NOT EXISTS", so swallow the
+    // duplicate-column error for each ALTER.
+    for stmt in [
+        "ALTER TABLE session_state ADD COLUMN last_git_head TEXT",
+        "ALTER TABLE session_state ADD COLUMN last_git_check_at INTEGER",
+    ] {
+        if let Err(e) = sqlx::query(stmt).execute(pool).await {
+            let msg = e.to_string();
+            if !msg.to_lowercase().contains("duplicate column") {
+                return Err(msg);
+            }
+        }
+    }
 
     Ok(())
 }

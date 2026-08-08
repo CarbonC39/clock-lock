@@ -28,6 +28,16 @@ function handleSnooze(id: string) {
   agent.snoozeCheckin(id);
 }
 
+const noteSnoozed = ref(false);
+function handleNoteSnooze(message: ChatMessage) {
+  if (message.initiatedBy === "git-tracker") {
+    sv.setGitTrackerSnooze(3_600_000);
+  } else {
+    sv.setSnooze(3_600_000, "manual");
+  }
+  noteSnoozed.value = true;
+}
+
 const toolExpanded = ref(false);
 const thoughtExpanded = ref(false);
 
@@ -132,8 +142,16 @@ function renderMd(src: string): string {
   </div>
 
   <!-- System note -->
-  <div v-else-if="message.role === 'system-note'" class="msg-note">
-    {{ message.content }}
+  <div v-else-if="message.role === 'system-note'" class="msg-note" :class="{ 'note-self': message.initiatedBy }">
+    <span v-if="message.initiatedBy === 'git-tracker'" class="note-badge">📋 git</span>
+    <span v-else-if="message.initiatedBy === 'self-checkin'" class="note-badge">🤖 self</span>
+    <span class="note-text">{{ message.content }}</span>
+    <button
+      v-if="message.initiatedBy && !noteSnoozed"
+      class="note-snooze"
+      @click="handleNoteSnooze(message)"
+    >Snooze 1h</button>
+    <span v-else-if="message.initiatedBy && noteSnoozed" class="note-snoozed">Snoozed</span>
   </div>
 
   <!-- Tool call result -->
@@ -219,11 +237,43 @@ function renderMd(src: string): string {
 <style scoped>
 /* ── System note ── */
 .msg-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
   font-size: 11px;
   color: var(--color-text-muted);
   text-align: center;
   padding: 4px 16px;
   font-style: italic;
+}
+
+.note-badge {
+  color: var(--color-accent-teal);
+  font-weight: 700;
+  font-style: normal;
+  margin-right: 2px;
+}
+
+.note-snooze {
+  font-size: 10.5px;
+  font-weight: 700;
+  font-style: normal;
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--color-accent-teal) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-teal) 30%, transparent);
+  border-radius: 99px;
+  color: var(--color-accent-teal);
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+.note-snooze:hover { opacity: 0.8; }
+
+.note-snoozed {
+  font-size: 10.5px;
+  color: var(--color-text-faint);
+  font-style: normal;
 }
 
 /* ── Tool call ── */

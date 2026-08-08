@@ -55,6 +55,50 @@ async function save() {
   saved.value = true;
   setTimeout(() => (saved.value = false), 2000);
 }
+
+// ── Git tracking / self check-in: persist to settings.json + push to backend ──
+
+async function applyGitTracking() {
+  await store.save();
+  sv.setGitTracking(
+    store.settings.git_tracking_enabled,
+    store.settings.git_tracking_commit_threshold,
+    store.settings.git_tracking_min_interval_minutes
+  );
+}
+function toggleGitTracking() {
+  store.settings.git_tracking_enabled = !store.settings.git_tracking_enabled;
+  applyGitTracking();
+}
+function setGitThreshold(v: number) {
+  store.settings.git_tracking_commit_threshold = v;
+  applyGitTracking();
+}
+function setGitInterval(v: number) {
+  store.settings.git_tracking_min_interval_minutes = v;
+  applyGitTracking();
+}
+
+async function applySelfCheckin() {
+  await store.save();
+  sv.setSelfCheckin(
+    store.settings.agent_self_checkin_enabled,
+    store.settings.agent_self_checkin_idle_minutes,
+    store.settings.agent_self_checkin_min_interval_minutes
+  );
+}
+function toggleSelfCheckin() {
+  store.settings.agent_self_checkin_enabled = !store.settings.agent_self_checkin_enabled;
+  applySelfCheckin();
+}
+function setSelfCheckinIdle(v: number) {
+  store.settings.agent_self_checkin_idle_minutes = v;
+  applySelfCheckin();
+}
+function setSelfCheckinInterval(v: number) {
+  store.settings.agent_self_checkin_min_interval_minutes = v;
+  applySelfCheckin();
+}
 </script>
 
 <template>
@@ -272,6 +316,98 @@ async function save() {
                 >{{ p.label }}</button>
               </div>
               <p class="field-hint">How long you can be idle before the agent gently checks in.</p>
+            </div>
+          </section>
+
+          <!-- Git tracking -->
+          <section class="section">
+            <h2 class="section-title">Git tracking</h2>
+
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-label">Track new commits</span>
+                <span class="toggle-hint">Watch the repo for new commits and let the agent react to what changed.</span>
+              </div>
+              <button
+                class="toggle-btn"
+                :class="{ on: store.settings.git_tracking_enabled }"
+                @click="toggleGitTracking"
+              >
+                <span class="toggle-knob" />
+              </button>
+            </div>
+
+            <div class="field-group" style="margin-top: 12px">
+              <label class="field-label">Commit threshold</label>
+              <div class="seg-tabs">
+                <button
+                  v-for="v in [3, 5, 10]"
+                  :key="v"
+                  class="seg-tab"
+                  :class="{ active: store.settings.git_tracking_commit_threshold === v }"
+                  @click="setGitThreshold(v)"
+                >{{ v }}</button>
+              </div>
+              <p class="field-hint">How many new commits accumulate before the agent takes a look.</p>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Min interval between reactions</label>
+              <div class="seg-tabs">
+                <button
+                  v-for="v in [10, 30, 60]"
+                  :key="v"
+                  class="seg-tab"
+                  :class="{ active: store.settings.git_tracking_min_interval_minutes === v }"
+                  @click="setGitInterval(v)"
+                >{{ v }} min</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Agent self check-in -->
+          <section class="section">
+            <h2 class="section-title">Agent self check-in</h2>
+
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-label">Self check-in on silence</span>
+                <span class="toggle-hint">The agent proactively checks in when it's been quiet — no file changes, no chat, no agent output.</span>
+              </div>
+              <button
+                class="toggle-btn"
+                :class="{ on: store.settings.agent_self_checkin_enabled }"
+                @click="toggleSelfCheckin"
+              >
+                <span class="toggle-knob" />
+              </button>
+            </div>
+
+            <div class="field-group" style="margin-top: 12px">
+              <label class="field-label">Silence threshold</label>
+              <div class="seg-tabs">
+                <button
+                  v-for="v in [15, 25, 45]"
+                  :key="v"
+                  class="seg-tab"
+                  :class="{ active: store.settings.agent_self_checkin_idle_minutes === v }"
+                  @click="setSelfCheckinIdle(v)"
+                >{{ v }} min</button>
+              </div>
+              <p class="field-hint">No file changes, no user chat, and no agent output for this long triggers a check-in.</p>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">Min interval between check-ins</label>
+              <div class="seg-tabs">
+                <button
+                  v-for="v in [30, 60, 120]"
+                  :key="v"
+                  class="seg-tab"
+                  :class="{ active: store.settings.agent_self_checkin_min_interval_minutes === v }"
+                  @click="setSelfCheckinInterval(v)"
+                >{{ v }} min</button>
+              </div>
             </div>
           </section>
         </template>
