@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { FolderOpen, FolderTree } from "lucide-vue-next";
+import { FolderOpen } from "lucide-vue-next";
 import Topbar from "../components/Topbar.vue";
 import TodoCard from "../components/TodoCard.vue";
 import OverviewCard from "../components/OverviewCard.vue";
 import AgentChat from "../components/AgentChat.vue";
-import FilesDrawer from "../components/FilesDrawer.vue";
+import FilesPane from "../components/FilesPane.vue";
 import SettingsDrawer from "../components/SettingsDrawer.vue";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useUiStore } from "../stores/uiStore";
@@ -17,40 +17,36 @@ const ui = useUiStore();
   <div class="app-layout">
     <Topbar />
 
-    <div class="workspace-area">
-      <!-- Left column: project cards -->
-      <aside class="left-stack">
-        <template v-if="workspace.path">
-          <TodoCard class="todo-slot" />
-          <OverviewCard class="overview-slot" />
-        </template>
+    <main class="tab-content">
+      <!-- Tab 1: Chat -->
+      <AgentChat v-show="ui.currentTab === 'chat'" />
 
-        <!-- No workspace -->
+      <!-- Tab 2: Files -->
+      <FilesPane v-show="ui.currentTab === 'files'" />
+
+      <!-- Tab 3: Notes (Todos left 280px, Overview right flex:1) -->
+      <div v-show="ui.currentTab === 'notes'" class="notes-tab">
+        <template v-if="workspace.path">
+          <TodoCard class="notes-todos" />
+          <OverviewCard class="notes-overview" />
+        </template>
         <button v-else class="open-card" @click="workspace.openWorkspace()">
           <FolderOpen :size="26" />
-          <span class="open-title">Open a Workspace</span>
-          <span class="open-hint">Pick a project folder to begin</span>
+          <span>Open a Workspace</span>
         </button>
+      </div>
 
-        <!-- Files drawer trigger -->
-        <button
-          class="files-fab"
-          :class="{ active: ui.filesOpen }"
-          @click="ui.toggleFiles()"
-        >
-          <FolderTree :size="14" />
-          <span>Files</span>
-        </button>
-      </aside>
+      <!-- No workspace overlay for Chat / Files tabs -->
+      <button
+        v-if="!workspace.path && ui.currentTab !== 'notes'"
+        class="open-card"
+        @click="workspace.openWorkspace()"
+      >
+        <FolderOpen :size="26" />
+        <span>Open a Workspace</span>
+      </button>
+    </main>
 
-      <!-- Center: the hero -->
-      <main class="chat-hero">
-        <AgentChat />
-      </main>
-    </div>
-
-    <!-- Overlays -->
-    <FilesDrawer />
     <SettingsDrawer />
   </div>
 </template>
@@ -65,38 +61,40 @@ const ui = useUiStore();
   overflow: hidden;
 }
 
-.workspace-area {
+.tab-content {
   flex: 1;
-  display: flex;
-  gap: 12px;
-  /* Tighter top gap: the topbar already carries internal padding below its
-     controls, so a full 12px here read as a lopsided gap vs. the window bottom. */
-  padding: 4px 12px 12px;
+  position: relative;
   overflow: hidden;
 }
 
-/* ── Left column ── */
-.left-stack {
-  width: 248px;
+/* Each tab panel fills the content area (only one is visible at a time).
+   inset:12px keeps the 12px breathing room around the panels. */
+.tab-content :deep(.agent-chat),
+.tab-content :deep(.files-pane),
+.tab-content :deep(.notes-tab) {
+  position: absolute;
+  inset: 12px;
+}
+
+/* ── Notes tab: left TodoCard + right OverviewCard ── */
+.notes-tab {
+  display: flex;
+  gap: 12px;
+}
+.notes-todos {
+  width: 280px;
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow: hidden;
 }
-
-.todo-slot {
-  flex: 0 1 auto;
-  max-height: 45%;
-}
-.overview-slot {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-/* No-workspace card */
-.open-card {
+.notes-overview {
   flex: 1;
+  min-width: 0;
+}
+
+/* No-workspace card (overlay) */
+.open-card {
+  position: absolute;
+  inset: 12px;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -113,49 +111,5 @@ const ui = useUiStore();
 .open-card:hover {
   border-color: color-mix(in srgb, var(--color-accent-blue) 45%, var(--color-border));
   background: color-mix(in srgb, var(--color-accent-blue) 4%, var(--color-surface));
-}
-.open-title { font-size: 13px; font-weight: 700; color: var(--color-text-primary); }
-.open-hint { font-size: 11.5px; color: var(--color-text-muted); }
-
-/* ── Files trigger ── */
-.files-fab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  flex-shrink: 0;
-  padding: 9px;
-  font-size: 12.5px;
-  font-weight: 700;
-  font-family: var(--font-sans);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-soft);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: background-color var(--transition), color var(--transition), border-color var(--transition);
-}
-.files-fab:hover {
-  color: var(--color-accent-teal);
-  border-color: color-mix(in srgb, var(--color-accent-teal) 40%, var(--color-border));
-}
-.files-fab.active {
-  color: var(--color-accent-teal);
-  background: color-mix(in srgb, var(--color-accent-teal) 10%, var(--color-surface));
-  border-color: color-mix(in srgb, var(--color-accent-teal) 45%, var(--color-border));
-}
-
-/* ── Center hero ── */
-.chat-hero {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-soft);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
 }
 </style>

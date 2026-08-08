@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 
 export type ThemeMode = "light" | "dark" | "system";
+export type MainTab = "chat" | "files" | "notes";
 
 export const useUiStore = defineStore("ui", () => {
   const themeMode = ref<ThemeMode>(
@@ -16,12 +17,18 @@ export const useUiStore = defineStore("ui", () => {
 
   const autoRestoreWorkspace = ref(localStorage.getItem("autoRestore") !== "false");
 
+  // ── Main-window tabs ──
+  const currentTab = ref<MainTab>(
+    (localStorage.getItem("ui-main-tab") as MainTab) || "chat"
+  );
+  function setTab(t: MainTab) {
+    currentTab.value = t;
+    localStorage.setItem("ui-main-tab", t);
+  }
+
   // ── Slide-over panels ──
-  const filesOpen = ref(false);
   const settingsOpen = ref(false);
 
-  function toggleFiles() { filesOpen.value = !filesOpen.value; }
-  function setFiles(v: boolean) { filesOpen.value = v; }
   function toggleSettings() { settingsOpen.value = !settingsOpen.value; }
   function setSettings(v: boolean) { settingsOpen.value = v; }
 
@@ -56,6 +63,7 @@ export const useUiStore = defineStore("ui", () => {
   return {
     isDark, themeMode, setThemeMode, toggleTheme,
     autoRestoreWorkspace, setAutoRestore, initTheme,
-    filesOpen, settingsOpen, toggleFiles, setFiles, toggleSettings, setSettings,
+    currentTab, setTab,
+    settingsOpen, toggleSettings, setSettings,
   };
 });

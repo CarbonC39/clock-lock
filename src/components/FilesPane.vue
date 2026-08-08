@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from "vue";
+import { ref, computed, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
-  X, FolderOpen, RotateCw, UtensilsCrossed, ExternalLink, FileText, PanelLeftClose,
+  FolderOpen, RotateCw, UtensilsCrossed, ExternalLink, FileText, PanelLeftClose,
 } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useUiStore } from "../stores/uiStore";
@@ -75,25 +75,11 @@ watch(
   }
 );
 
-function close() {
-  ui.setFiles(false);
-}
-
-// Esc closes the drawer (there's no dimming backdrop to click anymore).
-function onKey(e: KeyboardEvent) {
-  if (e.key === "Escape") close();
-}
-watch(() => ui.filesOpen, (open) => {
-  if (open) window.addEventListener("keydown", onKey);
-  else window.removeEventListener("keydown", onKey);
-});
-onUnmounted(() => window.removeEventListener("keydown", onKey));
-
 function feedToAgent() {
   if (!workspace.selectedFilePath || agent.isBusy) return;
   const rel = relPath();
   agent.sendMessage(`Take a look at \`${rel}\` — walk me through what it does and anything worth noting.`);
-  close();
+  ui.setTab("chat");
 }
 
 async function openExternally() {
@@ -114,133 +100,114 @@ async function saveAnnotation() {
 </script>
 
 <template>
-  <Transition name="drawer" :duration="{ enter: 300, leave: 240 }">
-    <div v-if="ui.filesOpen" class="drawer-root">
-      <aside class="drawer" :class="{ expanded: hasPreview }">
-        <!-- ── Tree pane ── -->
-        <div class="pane-tree">
-          <header class="pane-head">
-            <FolderOpen :size="14" class="head-icon" />
-            <span class="head-title">Files</span>
-            <button
-              v-if="workspace.path"
-              class="head-btn"
-              title="Refresh"
-              @click="workspace.refreshTree()"
-            ><RotateCw :size="13" /></button>
-            <button class="head-btn" title="Close" @click="close"><X :size="15" /></button>
-          </header>
+  <div class="files-pane" :class="{ 'tree-only': !hasPreview }">
+    <!-- ── Tree pane ── -->
+    <div class="pane-tree">
+      <header class="pane-head">
+        <FolderOpen :size="14" class="head-icon" />
+        <button
+          v-if="workspace.path"
+          class="head-btn"
+          title="Refresh"
+          @click="workspace.refreshTree()"
+        ><RotateCw :size="13" /></button>
+      </header>
 
-          <!-- No workspace -->
-          <div v-if="!workspace.path" class="drawer-empty">
-            <button class="open-zone" @click="workspace.openWorkspace()">
-              <FolderOpen :size="24" />
-              <span class="open-title">Open a Workspace</span>
-              <span class="open-hint">Browse for a project folder</span>
-            </button>
+      <!-- No workspace -->
+      <div v-if="!workspace.path" class="drawer-empty">
+        <button class="open-zone" @click="workspace.openWorkspace()">
+          <FolderOpen :size="24" />
+          <span class="open-title">Open a Workspace</span>
+          <span class="open-hint">Browse for a project folder</span>
+        </button>
+      </div>
+
+      <!-- Tree -->
+      <div v-else class="tree-scroll">
+        <FileTreeNode
+          v-for="node in workspace.fileTree"
+          :key="node.path"
+          :node="node"
+          :depth="0"
+        />
+        <div v-if="!workspace.fileTree.length" class="empty-hint">Empty workspace</div>
+      </div>
+    </div>
+
+    <!-- ── Preview pane ── -->
+    <div v-if="hasPreview" class="pane-view">
+      <header class="view-head">
+        <button class="head-btn" title="Close preview" @click="workspace.deselect()">
+          <PanelLeftClose :size="14" />
+        </button>
+        <FileText :size="13" class="view-icon" />
+        <span class="view-name">{{ selectedName }}</span>
+        <button class="view-act" title="Open in system app" @click="openExternally">
+          <ExternalLink :size="13" />
+        </button>
+        <button class="view-act feed" :disabled="agent.isBusy" title="Ask the agent to read this" @click="feedToAgent">
+          <UtensilsCrossed :size="13" />
+          <span>Feed</span>
+        </button>
+      </header>
+
+      <div class="view-body">
+        <!-- Text -->
+        <template v-if="workspace.selectedFileContent !== null">
+          <div v-if="highlightedHtml" class="shiki-wrap" v-html="highlightedHtml" />
+          <pre v-else class="plain-code"><code>{{ workspace.selectedFileContent }}</code></pre>
+        </template>
+
+        <!-- Binary / image -->
+        <div v-else class="binary-view">
+          <div v-if="imageDataUrl" class="image-preview">
+            <img :src="imageDataUrl" :alt="selectedName ?? ''" />
           </div>
+          <div v-else class="no-preview-badge">No inline preview — try "Open in system app".</div>
 
-          <!-- Tree -->
-          <div v-else class="tree-scroll">
-            <FileTreeNode
-              v-for="node in workspace.fileTree"
-              :key="node.path"
-              :node="node"
-              :depth="0"
-            />
-            <div v-if="!workspace.fileTree.length" class="empty-hint">Empty workspace</div>
-          </div>
-        </div>
-
-        <!-- ── Preview pane ── -->
-        <div v-if="hasPreview" class="pane-view">
-          <header class="view-head">
-            <button class="head-btn" title="Close preview" @click="workspace.deselect()">
-              <PanelLeftClose :size="14" />
-            </button>
-            <FileText :size="13" class="view-icon" />
-            <span class="view-name">{{ selectedName }}</span>
-            <button class="view-act" title="Open in system app" @click="openExternally">
-              <ExternalLink :size="13" />
-            </button>
-            <button class="view-act feed" :disabled="agent.isBusy" title="Ask the agent to read this" @click="feedToAgent">
-              <UtensilsCrossed :size="13" />
-              <span>Feed</span>
-            </button>
-          </header>
-
-          <div class="view-body">
-            <!-- Text -->
-            <template v-if="workspace.selectedFileContent !== null">
-              <div v-if="highlightedHtml" class="shiki-wrap" v-html="highlightedHtml" />
-              <pre v-else class="plain-code"><code>{{ workspace.selectedFileContent }}</code></pre>
-            </template>
-
-            <!-- Binary / image -->
-            <div v-else class="binary-view">
-              <div v-if="imageDataUrl" class="image-preview">
-                <img :src="imageDataUrl" :alt="selectedName ?? ''" />
-              </div>
-              <div v-else class="no-preview-badge">No inline preview — try "Open in system app".</div>
-
-              <div class="annotation-area">
-                <p class="annotation-label">Agent annotation</p>
-                <div class="annotation-row">
-                  <input
-                    v-model="annotationNote"
-                    class="annotation-input"
-                    placeholder="Describe this file so the agent understands it… (optional)"
-                    @keydown.enter="saveAnnotation"
-                    @blur="saveAnnotation"
-                  />
-                  <button class="btn-save" @click="saveAnnotation">
-                    {{ annotationSaved ? "Saved!" : "Save" }}
-                  </button>
-                </div>
-              </div>
+          <div class="annotation-area">
+            <p class="annotation-label">Agent annotation</p>
+            <div class="annotation-row">
+              <input
+                v-model="annotationNote"
+                class="annotation-input"
+                placeholder="Describe this file so the agent understands it… (optional)"
+                @keydown.enter="saveAnnotation"
+                @blur="saveAnnotation"
+              />
+              <button class="btn-save" @click="saveAnnotation">
+                {{ annotationSaved ? "Saved!" : "Save" }}
+              </button>
             </div>
           </div>
         </div>
-      </aside>
+      </div>
     </div>
-  </Transition>
+  </div>
 </template>
 
 <style scoped>
-/* Non-blocking: the root never captures pointer events, so the chat behind the
-   drawer stays fully clickable/typable. Only the panel itself is interactive.
-   Closes via the header X or Esc (no dimming backdrop). */
-.drawer-root {
-  position: absolute;
-  inset: 0;
-  z-index: 200;
-  pointer-events: none;
-}
-
-.drawer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 300px;
+.files-pane {
   display: flex;
+  height: 100%;
+  overflow: hidden;
   background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
-  box-shadow: var(--shadow-lg);
-  transition: width 0.24s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: auto;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
-.drawer.expanded { width: min(760px, 94vw); }
 
-/* ── Tree pane ── */
+/* ── Tree pane (32% of the pane, full width when no preview) ── */
 .pane-tree {
-  width: 280px;
+  width: 32%;
+  min-width: 240px;
+  max-width: 420px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--color-border-soft);
 }
-.drawer:not(.expanded) .pane-tree { width: 300px; }
+.files-pane.tree-only .pane-tree { width: 100%; max-width: none; }
 
 .pane-head {
   display: flex;
@@ -252,13 +219,6 @@ async function saveAnnotation() {
   flex-shrink: 0;
 }
 .head-icon { color: var(--color-accent-teal); flex-shrink: 0; }
-.head-title {
-  flex: 1;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: var(--color-text-primary);
-}
 .head-btn {
   display: flex;
   align-items: center;
@@ -450,11 +410,4 @@ async function saveAnnotation() {
   transition: opacity var(--transition);
 }
 .btn-save:hover { opacity: 0.85; }
-
-/* ── Slide transition ── */
-.drawer-enter-active .drawer { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-.drawer-leave-active .drawer { transition: transform 0.24s cubic-bezier(0.4, 0, 1, 1); }
-.drawer-enter-from .drawer,
-.drawer-leave-to .drawer { transform: translateX(-101%); }
-
 </style>

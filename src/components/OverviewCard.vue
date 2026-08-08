@@ -103,6 +103,7 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
 .card {
   display: flex;
   flex-direction: column;
+  height: 100%;
   background: var(--color-surface);
   border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-lg);

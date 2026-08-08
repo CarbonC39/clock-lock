@@ -180,12 +180,6 @@ onUnmounted(() => {
           <SendHorizonal v-else :size="14" />
         </button>
       </div>
-      <div class="input-footer">
-        <span class="model-badge">
-          {{ settings.settings.provider === "ollama" ? "Ollama" : "Cloud" }}
-          · {{ settings.settings.model }}
-        </span>
-      </div>
     </div>
   </div>
 </template>
