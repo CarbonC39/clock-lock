@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 
 export interface AgentSettings {
@@ -20,6 +20,8 @@ export interface AgentSettings {
   agent_self_checkin_enabled: boolean;
   agent_self_checkin_idle_minutes: number;
   agent_self_checkin_min_interval_minutes: number;
+  idle_enabled: boolean;
+  idle_threshold_minutes: number;
 }
 
 const CLOUD_DEFAULTS = {
@@ -42,7 +44,7 @@ export const useSettingsStore = defineStore("settings", () => {
     max_tokens: 4096,
     shell_path: "",
     startup_mode: "window",
-    close_behavior: "close",
+    close_behavior: "hide",
     home_md_mode: "appdata",
     git_tracking_enabled: false,
     git_tracking_commit_threshold: 5,
@@ -50,9 +52,30 @@ export const useSettingsStore = defineStore("settings", () => {
     agent_self_checkin_enabled: false,
     agent_self_checkin_idle_minutes: 25,
     agent_self_checkin_min_interval_minutes: 30,
+    idle_enabled: true,
+    idle_threshold_minutes: 2880,
   });
 
   const loaded = ref(false);
+  // Dirty tracking for the auto-save flow (a non-blocking "Saved" toast).
+  const dirty = ref(false);
+  const savedAt = ref(0);
+
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async function doSave() {
+    try {
+      await invoke("save_settings", { settings: settings.value });
+      dirty.value = false;
+      savedAt.value = Date.now();
+    } catch { /* keep dirty so the next change retries */ }
+  }
+
+  /** Debounced auto-save: settings.json is written ~600ms after the last change. */
+  function scheduleSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => { doSave(); }, 600);
+  }
 
   async function load() {
     if (loaded.value) return;
@@ -66,8 +89,10 @@ export const useSettingsStore = defineStore("settings", () => {
     loaded.value = true;
   }
 
-  async function save() {
-    await invoke("save_settings", { settings: settings.value });
+  /** Immediate save (used on app teardown / sensitive fields if ever needed). */
+  async function flushSave() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    await doSave();
   }
 
   function switchProvider(p: "cloud" | "ollama") {
@@ -82,5 +107,16 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
-  return { settings, loaded, load, save, switchProvider };
+  // Deep watch → auto-save. Gated by `loaded` so load() itself doesn't mark dirty.
+  watch(
+    () => settings.value,
+    () => {
+      if (!loaded.value) return;
+      dirty.value = true;
+      scheduleSave();
+    },
+    { deep: true }
+  );
+
+  return { settings, loaded, dirty, savedAt, load, save: flushSave, flushSave, switchProvider };
 });

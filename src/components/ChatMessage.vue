@@ -361,17 +361,17 @@ function renderMd(src: string): string {
   padding: 5px 10px;
   font-size: 11.5px;
   font-weight: 600;
-  background: color-mix(in srgb, var(--color-accent-purple) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 22%, transparent);
+  background: color-mix(in srgb, var(--color-accent-blue) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-blue) 22%, transparent);
   border-radius: var(--radius-sm);
-  color: var(--color-accent-purple);
+  color: var(--color-accent-blue);
   cursor: pointer;
   transition: all var(--transition);
   width: 100%;
   text-align: left;
 }
 .tool-toggle:hover {
-  background: color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
+  background: color-mix(in srgb, var(--color-accent-blue) 16%, transparent);
 }
 
 .tool-result {
@@ -382,7 +382,7 @@ function renderMd(src: string): string {
   line-height: 1.55;
   color: var(--color-text-secondary);
   background: var(--color-surface);
-  border-left: 2px solid var(--color-accent-purple);
+  border-left: 2px solid var(--color-accent-teal);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   white-space: pre-wrap;
   word-break: break-word;
@@ -520,8 +520,8 @@ function renderMd(src: string): string {
 .msg-checkin { display: flex; justify-content: flex-start; }
 
 .checkin-card {
-  background: color-mix(in srgb, var(--color-accent-purple) 8%, var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 28%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-teal) 8%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent-teal) 28%, var(--color-border));
   border-radius: 12px;
   overflow: hidden;
   max-width: 340px;
@@ -534,14 +534,14 @@ function renderMd(src: string): string {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: color-mix(in srgb, var(--color-accent-purple) 14%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-accent-purple) 20%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-teal) 14%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-accent-teal) 20%, var(--color-border));
 }
 
 .checkin-kaomoji {
   font-family: var(--font-mono);
   font-size: 13px;
-  color: var(--color-accent-purple);
+  color: var(--color-accent-teal);
   flex-shrink: 0;
 }
 
@@ -550,7 +550,7 @@ function renderMd(src: string): string {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--color-accent-purple);
+  color: var(--color-accent-teal);
   flex: 1;
 }
 
@@ -558,10 +558,10 @@ function renderMd(src: string): string {
   font-size: 10.5px;
   font-weight: 600;
   padding: 2px 7px;
-  background: color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 28%, transparent);
+  background: color-mix(in srgb, var(--color-accent-teal) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-teal) 28%, transparent);
   border-radius: 99px;
-  color: var(--color-accent-purple);
+  color: var(--color-accent-teal);
   white-space: nowrap;
 }
 
@@ -584,8 +584,8 @@ function renderMd(src: string): string {
   align-items: baseline;
   gap: 6px;
   padding: 5px 9px;
-  background: color-mix(in srgb, var(--color-accent-purple) 6%, var(--color-surface));
-  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 16%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-blue) 6%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent-blue) 16%, var(--color-border));
   border-radius: 6px;
 }
 
@@ -611,8 +611,8 @@ function renderMd(src: string): string {
   display: flex;
   gap: 6px;
   padding: 8px 12px;
-  border-top: 1px solid color-mix(in srgb, var(--color-accent-purple) 12%, var(--color-border));
-  background: color-mix(in srgb, var(--color-accent-purple) 4%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--color-accent-teal) 12%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent-teal) 4%, transparent);
 }
 
 .checkin-btn {
@@ -628,11 +628,11 @@ function renderMd(src: string): string {
 }
 .checkin-btn:hover { opacity: 0.85; }
 
-.btn-primary   { background: var(--color-accent-purple); color: #fff; }
+.btn-primary   { background: var(--color-accent-blue); color: #fff; }
 .btn-secondary {
-  background: color-mix(in srgb, var(--color-accent-purple) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 30%, transparent);
-  color: var(--color-accent-purple);
+  background: color-mix(in srgb, var(--color-accent-blue) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-blue) 30%, transparent);
+  color: var(--color-accent-blue);
 }
 .btn-ghost {
   background: transparent;
@@ -655,7 +655,7 @@ function renderMd(src: string): string {
 
 .msg-assistant .markdown-body h1 { font-size: 1.3em; font-weight: 700; color: var(--color-accent-blue); margin: 0.5em 0 0.4em; border-bottom: 1px solid var(--color-border); padding-bottom: 0.2em; }
 .msg-assistant .markdown-body h2 { font-size: 1.1em; font-weight: 700; color: var(--color-accent-blue); margin: 0.8em 0 0.3em; padding-left: 8px; border-left: 2px solid var(--color-accent-blue); }
-.msg-assistant .markdown-body h3 { font-size: 1em; font-weight: 700; color: var(--color-accent-pink); margin: 0.7em 0 0.25em; }
+.msg-assistant .markdown-body h3 { font-size: 1em; font-weight: 700; color: var(--color-accent-teal); margin: 0.7em 0 0.25em; }
 
 .msg-assistant .markdown-body p { color: var(--color-text-secondary); margin: 0 0 0.6em; }
 .msg-assistant .markdown-body p:last-child { margin-bottom: 0; }
@@ -677,7 +677,7 @@ function renderMd(src: string): string {
 .msg-assistant .markdown-body pre {
   background: var(--editor-bg, var(--color-surface));
   border: 1px solid var(--color-border);
-  border-left: 3px solid var(--color-accent-purple);
+  border-left: 3px solid var(--color-accent-blue);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   overflow-x: auto;
@@ -690,10 +690,10 @@ function renderMd(src: string): string {
 }
 
 .msg-assistant .markdown-body blockquote {
-  border-left: 2px solid var(--color-accent-purple);
+  border-left: 2px solid var(--color-accent-teal);
   margin: 0.3em 0 0.6em;
   padding: 0.4em 0.8em;
-  background: color-mix(in srgb, var(--color-accent-purple) 5%, transparent);
+  background: color-mix(in srgb, var(--color-accent-teal) 5%, transparent);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   color: var(--color-text-muted);
   font-style: italic;

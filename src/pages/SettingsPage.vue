@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, reactive, computed, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import {
   ArrowLeft, X, Cloud, Server, Check, Sun, Moon, Monitor,
@@ -26,22 +26,56 @@ const store = useSettingsStore();
 const ui = useUiStore();
 const sv = useSupervisionStore();
 
-const saved = ref(false);
 const showKey = ref(false);
 
-// Friendly idle-threshold presets instead of a raw hours box. "Off" parks the
-// threshold so far out it never fires (use DND/Focus for a quick mute).
-const IDLE_PRESETS: { label: string; h: number }[] = [
-  { label: "1h", h: 1 },
-  { label: "4h", h: 4 },
-  { label: "8h", h: 8 },
-  { label: "1 day", h: 24 },
-  { label: "2 days", h: 48 },
-  { label: "Off", h: 8760 },
+// ── Saved toast (non-blocking feedback for the debounced auto-save) ──
+const showSavedToast = ref(false);
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+watch(() => store.savedAt, () => {
+  showSavedToast.value = true;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { showSavedToast.value = false; }, 1500);
+});
+
+// Idle check-in threshold — minutes, covering short to long, with a Custom input.
+const IDLE_PRESETS: { label: string; m: number }[] = [
+  { label: "30m", m: 30 },
+  { label: "1h", m: 60 },
+  { label: "4h", m: 240 },
+  { label: "1d", m: 1440 },
+  { label: "2d", m: 2880 },
 ];
-function idleActive(h: number): boolean {
-  return h === 8760 ? sv.idleHours >= 168 : sv.idleHours === h;
+
+// Shared "presets + Custom" group helper: tracks whether the current value is a
+// preset, the Custom input state, and clamps on commit.
+function useCustomPreset(
+  presets: number[],
+  get: () => number,
+  commit: (v: number) => void,
+  min: number,
+  max: number
+) {
+  const customOpen = ref(false);
+  const customValue = ref(get());
+  watch(() => get(), v => { customValue.value = v; });
+  const customActive = computed(() => !presets.includes(get()));
+  function commitCustom() {
+    let v = customValue.value;
+    if (isNaN(v) || v < min) v = min;
+    if (v > max) v = max;
+    customValue.value = v;
+    commit(v);
+  }
+  // reactive() unwraps the refs in templates so `group.customOpen` reads as a bool.
+  return reactive({ customOpen, customValue, customActive, commitCustom });
 }
+
+const idleGroup = useCustomPreset(
+  IDLE_PRESETS.map(p => p.m),
+  () => sv.idleMinutes,
+  v => sv.setIdleThreshold(v, true),
+  1, 20160
+);
 
 onMounted(() => store.load());
 
@@ -50,16 +84,10 @@ function goBack() {
   else router.push("/");
 }
 
-async function save() {
-  await store.save();
-  saved.value = true;
-  setTimeout(() => (saved.value = false), 2000);
-}
+// ── Git tracking / self check-in: push to backend (persistence handled by the
+//    settingsStore deep-watch auto-save) ──
 
-// ── Git tracking / self check-in: persist to settings.json + push to backend ──
-
-async function applyGitTracking() {
-  await store.save();
+function applyGitTracking() {
   sv.setGitTracking(
     store.settings.git_tracking_enabled,
     store.settings.git_tracking_commit_threshold,
@@ -79,8 +107,7 @@ function setGitInterval(v: number) {
   applyGitTracking();
 }
 
-async function applySelfCheckin() {
-  await store.save();
+function applySelfCheckin() {
   sv.setSelfCheckin(
     store.settings.agent_self_checkin_enabled,
     store.settings.agent_self_checkin_idle_minutes,
@@ -99,6 +126,32 @@ function setSelfCheckinInterval(v: number) {
   store.settings.agent_self_checkin_min_interval_minutes = v;
   applySelfCheckin();
 }
+
+// Custom-value groups for the git / self-audit presets (same UX as the idle one).
+const gitThresholdGroup = useCustomPreset(
+  [3, 5, 10],
+  () => store.settings.git_tracking_commit_threshold,
+  setGitThreshold,
+  1, 50
+);
+const gitIntervalGroup = useCustomPreset(
+  [10, 30, 60],
+  () => store.settings.git_tracking_min_interval_minutes,
+  setGitInterval,
+  1, 240
+);
+const selfCheckinIdleGroup = useCustomPreset(
+  [15, 25, 45],
+  () => store.settings.agent_self_checkin_idle_minutes,
+  setSelfCheckinIdle,
+  5, 180
+);
+const selfCheckinIntervalGroup = useCustomPreset(
+  [30, 60, 120],
+  () => store.settings.agent_self_checkin_min_interval_minutes,
+  setSelfCheckinInterval,
+  10, 480
+);
 </script>
 
 <template>
@@ -260,7 +313,12 @@ function setSelfCheckinInterval(v: number) {
                 <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'close' }" @click="store.settings.close_behavior = 'close'">Exit app</button>
                 <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'hide' }" @click="store.settings.close_behavior = 'hide'">Hide to tray</button>        
               </div>
-              <p v-if="store.settings.close_behavior === 'hide'" class="field-hint">Requires tray icon (M7).</p>
+              <p v-if="store.settings.close_behavior === 'close'" class="field-hint">
+                Clicking the window close button fully quits the app. Use the tray icon to reopen.
+              </p>
+              <p v-else class="field-hint">
+                Close button hides the window to the tray; the app keeps running. Quit from the tray menu.
+              </p>
             </div>
 
             <div class="field-group">
@@ -274,7 +332,7 @@ function setSelfCheckinInterval(v: number) {
 
           <!-- Supervision -->
           <section class="section">
-            <h2 class="section-title">Supervision</h2>
+            <h2 class="section-title">Check-in</h2>
 
             <div class="toggle-row">
               <div class="toggle-info">
@@ -292,8 +350,54 @@ function setSelfCheckinInterval(v: number) {
 
             <div class="toggle-row" style="margin-top: 6px">
               <div class="toggle-info">
-                <span class="toggle-label">AI-generated check-ins</span>
-                <span class="toggle-hint">Occasionally (≤ once a day) write a fresh line that references what you were working on. Off keeps it to the built-in phrases — no API calls.</span>
+                <span class="toggle-label">Idle check-ins</span>
+                <span class="toggle-hint">Master switch: whether Clock Lock checks in at all after you've been idle past the threshold below. (For the agent checking its own progress, see <em>Agent self-audit</em> below.)</span>
+              </div>
+              <button
+                class="toggle-btn"
+                :class="{ on: sv.idleEnabled }"
+                @click="sv.setIdleThreshold(sv.idleMinutes, !sv.idleEnabled)"
+              >
+                <span class="toggle-knob" />
+              </button>
+            </div>
+
+            <div class="field-group" style="margin-top: 12px">
+              <label class="field-label">Idle check-in threshold</label>
+              <div v-if="sv.idleEnabled" class="seg-tabs">
+                <button
+                  v-for="p in IDLE_PRESETS"
+                  :key="p.m"
+                  class="seg-tab"
+                  :class="{ active: idleGroup.customActive ? false : sv.idleMinutes === p.m }"
+                  @click="sv.setIdleThreshold(p.m, true)"
+                >{{ p.label }}</button>
+                <button
+                  class="seg-tab"
+                  :class="{ active: idleGroup.customActive }"
+                  @click="idleGroup.customOpen = !idleGroup.customOpen"
+                >Custom</button>
+              </div>
+              <span v-else class="field-hint">Check-ins are off. Use DND for a quick mute instead.</span>
+              <div v-if="sv.idleEnabled && idleGroup.customOpen" class="custom-input-row">
+                <input
+                  v-model.number="idleGroup.customValue"
+                  type="number"
+                  min="1"
+                  max="20160"
+                  class="field-input custom-input"
+                  @blur="idleGroup.commitCustom"
+                  @keydown.enter="idleGroup.commitCustom"
+                />
+                <span class="field-hint">minutes (1 min – 2 weeks)</span>
+              </div>
+              <p v-if="sv.idleEnabled" class="field-hint">How long you can be idle before the agent gently checks in.</p>
+            </div>
+
+            <div class="toggle-row" style="margin-top: 6px">
+              <div class="toggle-info">
+                <span class="toggle-label">AI-written check-in messages</span>
+                <span class="toggle-hint">About the <em>words</em>, not the trigger: occasionally (≤ once a day) let the AI write a fresh line about what you were working on. Off keeps the built-in phrase pool — zero API calls. Idle check-ins still fire either way.</span>
               </div>
               <button
                 class="toggle-btn"
@@ -302,20 +406,6 @@ function setSelfCheckinInterval(v: number) {
               >
                 <span class="toggle-knob" />
               </button>
-            </div>
-
-            <div class="field-group" style="margin-top: 12px">
-              <label class="field-label">Idle check-in threshold</label>
-              <div class="seg-tabs">
-                <button
-                  v-for="p in IDLE_PRESETS"
-                  :key="p.h"
-                  class="seg-tab"
-                  :class="{ active: idleActive(p.h) }"
-                  @click="sv.setIdleHours(p.h)"
-                >{{ p.label }}</button>
-              </div>
-              <p class="field-hint">How long you can be idle before the agent gently checks in.</p>
             </div>
           </section>
 
@@ -344,9 +434,26 @@ function setSelfCheckinInterval(v: number) {
                   v-for="v in [3, 5, 10]"
                   :key="v"
                   class="seg-tab"
-                  :class="{ active: store.settings.git_tracking_commit_threshold === v }"
+                  :class="{ active: gitThresholdGroup.customActive ? false : store.settings.git_tracking_commit_threshold === v }"
                   @click="setGitThreshold(v)"
                 >{{ v }}</button>
+                <button
+                  class="seg-tab"
+                  :class="{ active: gitThresholdGroup.customActive }"
+                  @click="gitThresholdGroup.customOpen = !gitThresholdGroup.customOpen"
+                >Custom</button>
+              </div>
+              <div v-if="gitThresholdGroup.customOpen" class="custom-input-row">
+                <input
+                  v-model.number="gitThresholdGroup.customValue"
+                  type="number"
+                  min="1"
+                  max="50"
+                  class="field-input custom-input"
+                  @blur="gitThresholdGroup.commitCustom"
+                  @keydown.enter="gitThresholdGroup.commitCustom"
+                />
+                <span class="field-hint">commits (1–50)</span>
               </div>
               <p class="field-hint">How many new commits accumulate before the agent takes a look.</p>
             </div>
@@ -358,21 +465,38 @@ function setSelfCheckinInterval(v: number) {
                   v-for="v in [10, 30, 60]"
                   :key="v"
                   class="seg-tab"
-                  :class="{ active: store.settings.git_tracking_min_interval_minutes === v }"
+                  :class="{ active: gitIntervalGroup.customActive ? false : store.settings.git_tracking_min_interval_minutes === v }"
                   @click="setGitInterval(v)"
                 >{{ v }} min</button>
+                <button
+                  class="seg-tab"
+                  :class="{ active: gitIntervalGroup.customActive }"
+                  @click="gitIntervalGroup.customOpen = !gitIntervalGroup.customOpen"
+                >Custom</button>
+              </div>
+              <div v-if="gitIntervalGroup.customOpen" class="custom-input-row">
+                <input
+                  v-model.number="gitIntervalGroup.customValue"
+                  type="number"
+                  min="1"
+                  max="240"
+                  class="field-input custom-input"
+                  @blur="gitIntervalGroup.commitCustom"
+                  @keydown.enter="gitIntervalGroup.commitCustom"
+                />
+                <span class="field-hint">minutes (1–240)</span>
               </div>
             </div>
           </section>
 
-          <!-- Agent self check-in -->
+          <!-- Agent self-audit -->
           <section class="section">
-            <h2 class="section-title">Agent self check-in</h2>
+            <h2 class="section-title">Agent self-audit on silence</h2>
 
             <div class="toggle-row">
               <div class="toggle-info">
-                <span class="toggle-label">Self check-in on silence</span>
-                <span class="toggle-hint">The agent proactively checks in when it's been quiet — no file changes, no chat, no agent output.</span>
+                <span class="toggle-label">Self-audit on silence</span>
+                <span class="toggle-hint">The agent reviews its own progress when it's been quiet — no file changes, no chat, no agent output. (This is about the agent's self-review, not about nudging you — see <em>Check-in</em> above.)</span>
               </div>
               <button
                 class="toggle-btn"
@@ -390,9 +514,26 @@ function setSelfCheckinInterval(v: number) {
                   v-for="v in [15, 25, 45]"
                   :key="v"
                   class="seg-tab"
-                  :class="{ active: store.settings.agent_self_checkin_idle_minutes === v }"
+                  :class="{ active: selfCheckinIdleGroup.customActive ? false : store.settings.agent_self_checkin_idle_minutes === v }"
                   @click="setSelfCheckinIdle(v)"
                 >{{ v }} min</button>
+                <button
+                  class="seg-tab"
+                  :class="{ active: selfCheckinIdleGroup.customActive }"
+                  @click="selfCheckinIdleGroup.customOpen = !selfCheckinIdleGroup.customOpen"
+                >Custom</button>
+              </div>
+              <div v-if="selfCheckinIdleGroup.customOpen" class="custom-input-row">
+                <input
+                  v-model.number="selfCheckinIdleGroup.customValue"
+                  type="number"
+                  min="5"
+                  max="180"
+                  class="field-input custom-input"
+                  @blur="selfCheckinIdleGroup.commitCustom"
+                  @keydown.enter="selfCheckinIdleGroup.commitCustom"
+                />
+                <span class="field-hint">minutes (5–180)</span>
               </div>
               <p class="field-hint">No file changes, no user chat, and no agent output for this long triggers a check-in.</p>
             </div>
@@ -404,9 +545,26 @@ function setSelfCheckinInterval(v: number) {
                   v-for="v in [30, 60, 120]"
                   :key="v"
                   class="seg-tab"
-                  :class="{ active: store.settings.agent_self_checkin_min_interval_minutes === v }"
+                  :class="{ active: selfCheckinIntervalGroup.customActive ? false : store.settings.agent_self_checkin_min_interval_minutes === v }"
                   @click="setSelfCheckinInterval(v)"
                 >{{ v }} min</button>
+                <button
+                  class="seg-tab"
+                  :class="{ active: selfCheckinIntervalGroup.customActive }"
+                  @click="selfCheckinIntervalGroup.customOpen = !selfCheckinIntervalGroup.customOpen"
+                >Custom</button>
+              </div>
+              <div v-if="selfCheckinIntervalGroup.customOpen" class="custom-input-row">
+                <input
+                  v-model.number="selfCheckinIntervalGroup.customValue"
+                  type="number"
+                  min="10"
+                  max="480"
+                  class="field-input custom-input"
+                  @blur="selfCheckinIntervalGroup.commitCustom"
+                  @keydown.enter="selfCheckinIntervalGroup.commitCustom"
+                />
+                <span class="field-hint">minutes (10–480)</span>
               </div>
             </div>
           </section>
@@ -471,15 +629,14 @@ function setSelfCheckinInterval(v: number) {
           <div class="field-group field-half" />
         </div>
       </section>
-
-      <!-- Save button -->
-      <div class="save-row">
-        <button class="save-btn" @click="save">
-          <Check v-if="saved" :size="14" />
-          {{ saved ? "Saved!" : "Save Settings" }}
-        </button>
-      </div>
     </div>
+
+    <!-- Saved toast (non-blocking feedback for the debounced auto-save) -->
+    <Transition name="saved-toast">
+      <div v-if="showSavedToast" class="saved-toast">
+        <Check :size="13" /> Saved
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -838,25 +995,40 @@ function setSelfCheckinInterval(v: number) {
 
 .toggle-btn.on .toggle-knob { transform: translateX(18px); }
 
-/* ── Save ── */
-.save-row {
+.custom-input-row {
   display: flex;
-  padding-top: 4px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.custom-input {
+  width: 120px;
+  flex-shrink: 0;
 }
 
-.save-btn {
+/* ── Saved toast ── */
+.saved-toast {
+  position: fixed;
+  top: 16px;
+  right: 24px;
+  z-index: 400;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 28px;
-  font-size: 13px;
+  padding: 7px 14px;
+  font-size: 12px;
   font-weight: 600;
-  background: var(--color-accent-blue);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: opacity var(--transition);
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 99px;
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
 }
-.save-btn:hover { opacity: 0.85; }
+.saved-toast svg { color: var(--color-accent-green); }
+
+.saved-toast-enter-active,
+.saved-toast-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.saved-toast-enter-from,
+.saved-toast-leave-to { opacity: 0; transform: translateY(-6px); }
 </style>

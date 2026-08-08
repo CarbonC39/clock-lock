@@ -318,8 +318,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   padding: 16px;
-  background: color-mix(in srgb, var(--color-accent-purple) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-accent-purple) 20%, transparent);
+  background: color-mix(in srgb, var(--color-accent-blue) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-blue) 20%, transparent);
   border-radius: var(--radius-md);
   text-align: center;
 }
@@ -338,7 +338,7 @@ onUnmounted(() => {
   padding: 7px 18px;
   font-size: 12px;
   font-weight: 600;
-  background: var(--color-accent-purple);
+  background: var(--color-accent-blue);
   color: #fff;
   border: none;
   border-radius: var(--radius-sm);

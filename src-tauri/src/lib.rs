@@ -155,13 +155,20 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // ── Close → hide to tray ──
+            // ── Close → hide to tray (or quit, per close_behavior) ──
             if let Some(window) = app.get_webview_window("main") {
                 let window_clone = window.clone();
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        let _ = window_clone.hide();
-                        api.prevent_close();
+                        let app = window_clone.app_handle();
+                        let settings = crate::commands::settings::get_settings(app.clone());
+                        if settings.close_behavior == "close" {
+                            // Full quit — the window's close button really exits.
+                            app.exit(0);
+                        } else {
+                            let _ = window_clone.hide();
+                            api.prevent_close();
+                        }
                     }
                 });
             }

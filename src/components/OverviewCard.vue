@@ -198,7 +198,7 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
 .md-rendered :deep(p:last-child) { margin-bottom: 0; }
 .md-rendered :deep(h1) { font-size: 1.12em; font-weight: 700; color: var(--color-accent-blue); margin: 0.7em 0 0.3em; }
 .md-rendered :deep(h2) { font-size: 1.04em; font-weight: 700; color: var(--color-accent-blue); margin: 0.7em 0 0.25em; }
-.md-rendered :deep(h3) { font-size: 1em; font-weight: 600; color: var(--color-accent-purple); margin: 0.55em 0 0.2em; }
+.md-rendered :deep(h3) { font-size: 1em; font-weight: 600; color: var(--color-accent-teal); margin: 0.55em 0 0.2em; }
 .md-rendered :deep(h4) { font-size: 0.95em; font-weight: 600; color: var(--color-accent-teal); margin: 0.5em 0 0.2em; }
 .md-rendered :deep(ul), .md-rendered :deep(ol) { padding-left: 1.3em; margin: 0 0 0.5em; }
 .md-rendered :deep(li) { margin-bottom: 0.15em; color: var(--color-text-secondary); }
@@ -221,7 +221,7 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
 }
 .md-rendered :deep(pre code) { background: none; border: none; padding: 0; color: var(--color-text-primary); font-size: 0.84em; }
 .md-rendered :deep(blockquote) {
-  border-left: 2px solid var(--color-accent-purple);
+  border-left: 2px solid var(--color-accent-teal);
   margin: 0.3em 0 0.5em;
   padding: 0.3em 0.8em;
   color: var(--color-text-muted);

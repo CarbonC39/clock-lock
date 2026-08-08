@@ -174,11 +174,20 @@ async function generateGrounded(
 export const useSupervisionStore = defineStore("supervision", () => {
   const dnd = ref(localStorage.getItem("sv-dnd") === "true");
   const isRunning = ref(false);
-  const idleHours = ref(
-    parseInt(localStorage.getItem("sv-idle-hours") ?? "48", 10)
+
+  // Migrate the legacy hour-based idle threshold to minutes.
+  const legacyHours = localStorage.getItem("sv-idle-hours");
+  if (legacyHours !== null && localStorage.getItem("sv-idle-minutes") === null) {
+    const mins = Math.max(1, Math.round(Number(legacyHours) * 60));
+    localStorage.setItem("sv-idle-minutes", String(mins));
+    localStorage.removeItem("sv-idle-hours");
+  }
+  const idleMinutes = ref(
+    parseInt(localStorage.getItem("sv-idle-minutes") ?? "2880", 10)
   );
+  const idleEnabled = ref(localStorage.getItem("sv-idle-enabled") !== "false");
   const lastActivityMs = ref<number>(
-    Date.now() - (Number(localStorage.getItem("sv-idle-hours")) || 48) * 3_600_000
+    Date.now() - (Number(localStorage.getItem("sv-idle-minutes")) || 2880) * 60_000
   );
   const snoozeUntil = ref<number>(
     Number(localStorage.getItem("sv-snooze-until")) || 0
@@ -204,13 +213,20 @@ export const useSupervisionStore = defineStore("supervision", () => {
   function setDnd(v: boolean) {
     dnd.value = v;
     localStorage.setItem("sv-dnd", v ? "true" : "false");
-    invoke("configure_supervision", { idleHours: idleHours.value, dnd: v }).catch(() => {});
+    invoke("configure_supervision", { idleEnabled: idleEnabled.value, idleMinutes: idleMinutes.value, dnd: v }).catch(() => {});
   }
 
-  function setIdleHours(h: number) {
-    idleHours.value = h;
-    localStorage.setItem("sv-idle-hours", String(h));
-    invoke("configure_supervision", { idleHours: idleHours.value, dnd: dnd.value }).catch(() => {});
+  function setIdleThreshold(minutes: number, enabled: boolean) {
+    idleMinutes.value = minutes;
+    idleEnabled.value = enabled;
+    localStorage.setItem("sv-idle-minutes", String(minutes));
+    localStorage.setItem("sv-idle-enabled", enabled ? "true" : "false");
+    // Persist to settings.json (settingsStore's deep watch handles the write),
+    // so the threshold survives restart and the backend sync uses it.
+    const settings = useSettingsStore();
+    settings.settings.idle_threshold_minutes = minutes;
+    settings.settings.idle_enabled = enabled;
+    invoke("configure_supervision", { idleEnabled, idleMinutes, dnd: dnd.value }).catch(() => {});
   }
 
   function setSnooze(durationMs: number, reason: SnoozeReason = "manual") {
@@ -262,7 +278,13 @@ export const useSupervisionStore = defineStore("supervision", () => {
     if (isRunning.value) return;
     isRunning.value = true;
 
-    invoke("configure_supervision", { idleHours: idleHours.value, dnd: dnd.value }).catch(() => {});
+    // settings.json is the source of truth for the idle threshold.
+    const settings = useSettingsStore();
+    await settings.load();
+    idleMinutes.value = settings.settings.idle_threshold_minutes ?? 2880;
+    idleEnabled.value = settings.settings.idle_enabled ?? true;
+
+    invoke("configure_supervision", { idleEnabled: idleEnabled.value, idleMinutes: idleMinutes.value, dnd: dnd.value }).catch(() => {});
     invoke("start_supervision").catch(console.warn);
 
     unlistenCheckin = await listen("supervision-checkin", async () => {
@@ -274,7 +296,6 @@ export const useSupervisionStore = defineStore("supervision", () => {
       if (Date.now() < snoozeUntil.value) { reportActivity(); return; }
 
       const workspace = useWorkspaceStore();
-      const settings = useSettingsStore();
       const { base_url, api_key, model } = settings.settings;
 
       const idleMinutes = Math.round((Date.now() - lastActivityMs.value) / 60_000);
@@ -331,13 +352,14 @@ export const useSupervisionStore = defineStore("supervision", () => {
   return {
     dnd,
     isRunning,
-    idleHours,
+    idleMinutes,
+    idleEnabled,
     snoozeUntil,
     gitSnoozeUntil,
     snoozeReason,
     checkinGrounded,
     setDnd,
-    setIdleHours,
+    setIdleThreshold,
     setSnooze,
     setGitTrackerSnooze,
     setGitTracking,

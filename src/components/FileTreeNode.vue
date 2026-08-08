@@ -95,12 +95,12 @@ const iconColor = computed<string>(() => {
   if (["ts", "tsx"].includes(ext)) return "var(--color-accent-blue)";
   if (["vue", "svelte"].includes(ext)) return "var(--color-accent-green)";
   if (["rs"].includes(ext)) return "var(--color-accent-red)";
-  if (["md", "txt"].includes(ext)) return "var(--color-accent-purple)";
+  if (["md", "txt"].includes(ext)) return "var(--color-accent-teal)";
   if (["py"].includes(ext)) return "var(--color-accent-teal)";
   if (["json", "toml", "yaml", "yml"].includes(ext)) return "var(--color-accent-yellow)";
-  if (["png","jpg","jpeg","gif","svg","webp","ico"].includes(ext)) return "var(--color-accent-pink)";
+  if (["png","jpg","jpeg","gif","svg","webp","ico"].includes(ext)) return "var(--color-accent-yellow)";
   if (["html"].includes(ext)) return "var(--color-accent-red)";
-  if (["css","scss"].includes(ext)) return "var(--color-accent-pink)";
+  if (["css","scss"].includes(ext)) return "var(--color-accent-blue)";
   return "var(--color-text-muted)";
 });
 

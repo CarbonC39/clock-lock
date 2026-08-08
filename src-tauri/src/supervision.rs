@@ -10,7 +10,8 @@ use crate::git_tracker::{self, GitTrackerState};
 
 pub struct SupervisionState {
     pub last_activity: Mutex<Instant>, // 用户 activity（report_activity）
-    pub idle_hours: Mutex<u64>,
+    pub idle_enabled: Mutex<bool>,
+    pub idle_minutes: Mutex<u64>,
     pub dnd: Mutex<bool>,
     pub handle: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
 
@@ -35,7 +36,8 @@ impl SupervisionState {
     pub fn new() -> Self {
         Self {
             last_activity: Mutex::new(Instant::now()),
-            idle_hours: Mutex::new(48),
+            idle_enabled: Mutex::new(true),
+            idle_minutes: Mutex::new(2880), // 48h
             dnd: Mutex::new(false),
             handle: Mutex::new(None),
 
@@ -75,9 +77,10 @@ pub fn report_agent_activity(app: AppHandle) {
 }
 
 #[tauri::command]
-pub fn configure_supervision(app: AppHandle, idle_hours: u64, dnd: bool) {
+pub fn configure_supervision(app: AppHandle, idle_enabled: bool, idle_minutes: u64, dnd: bool) {
     let state = app.state::<SupervisionState>();
-    *state.idle_hours.lock().unwrap() = idle_hours;
+    *state.idle_enabled.lock().unwrap() = idle_enabled;
+    *state.idle_minutes.lock().unwrap() = idle_minutes;
     *state.dnd.lock().unwrap() = dnd;
 }
 
@@ -161,11 +164,12 @@ pub fn start_supervision(app: AppHandle) {
             }
             let ws = workspace_path.as_deref().unwrap_or("");
 
-            let idle_hours = *state.idle_hours.lock().unwrap();
+            let idle_enabled = *state.idle_enabled.lock().unwrap();
+            let idle_minutes = *state.idle_minutes.lock().unwrap();
             let elapsed = state.last_activity.lock().unwrap().elapsed();
 
-            // === 48h 老逻辑 ===
-            if elapsed >= Duration::from_secs(idle_hours * 3600) {
+            // === 48h 老逻辑（现为分钟级、可 Off） ===
+            if idle_enabled && elapsed >= Duration::from_secs(idle_minutes * 60) {
                 let _ = app_clone.emit("supervision-checkin", ());
                 *state.last_activity.lock().unwrap() = Instant::now();
             }
