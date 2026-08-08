@@ -104,6 +104,9 @@ export const useWorkspaceStore = defineStore("workspace", () => {
       isLoading.value = false;
     }
 
+    // Stop the old watcher first so its notify handles are dropped before a new
+    // one is created — otherwise fs-change keeps streaming from the old folder.
+    await invoke("stop_watching").catch(() => {});
     invoke("start_watching", { workspacePath: dirPath }).catch(console.warn);
     invoke("set_last_workspace", { workspacePath: dirPath }).catch(console.warn);
     // Tell supervision which workspace is active (resets idle signals) and
