@@ -81,11 +81,18 @@ pub async fn chat_stream(
         req = req.header("Authorization", format!("Bearer {}", api_key));
     }
 
-    let response = req
+    let response = match req
         .json(&body_obj)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
+    {
+        Ok(resp) => resp,
+        Err(e) => {
+            let err = e.to_string();
+            let _ = app.emit("chat-error", ChatErrorEvent { id: msg_id.clone(), error: err.clone() });
+            return Err(err);
+        }
+    };
 
     if !response.status().is_success() {
         let status = response.status().as_u16();
@@ -99,7 +106,14 @@ pub async fn chat_stream(
     let mut buf = String::new();
 
     'outer: while let Some(item) = stream.next().await {
-        let bytes = item.map_err(|e| e.to_string())?;
+        let bytes = match item {
+            Ok(b) => b,
+            Err(e) => {
+                let err = e.to_string();
+                let _ = app.emit("chat-error", ChatErrorEvent { id: msg_id.clone(), error: err.clone() });
+                return Err(err);
+            }
+        };
         buf.push_str(&String::from_utf8_lossy(&bytes));
 
         while let Some(pos) = buf.find("\n\n") {

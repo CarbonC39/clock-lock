@@ -739,7 +739,18 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
         assistant.isStreaming = false;
         unlistenChunk();
         unlistenError();
-        if (assistant.error) break;
+        if (assistant.error) {
+          // One recovery chance: let the model wrap up in text instead of dying
+          // on a transient API/stream error.
+          if (round < MAX_TOOL_ROUNDS - 1) {
+            apiMessages.push({
+              role: "system",
+              content: `The previous response errored: ${assistant.error}. Explain to the user what went wrong in one short sentence and suggest a next step. Do not retry the failed tool.`,
+            });
+            continue;
+          }
+          break;
+        }
 
         if (toolCalls.length === 0 || isTextOnlyRound) {
           persistMessage({ ...assistant, id: assistantId, timestamp: Date.now() });
@@ -751,12 +762,21 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
         apiMessages.push({ role: "assistant", content: assistant.content || "", tool_calls: toolCalls });
 
         for (const tc of toolCalls) {
+          // Reject tool calls that lost their name mid-stream (truncated SSE).
+          if (!tc.function?.name) {
+            const errorMsg = "Tool call was missing a function name (stream interrupted). Skip.";
+            const toolMsg: ChatMessage = { id: crypto.randomUUID(), role: "tool", content: errorMsg, tool_call_id: tc.id || crypto.randomUUID(), name: "(unknown)", timestamp: Date.now() };
+            messages.value.push(toolMsg);
+            apiMessages.push({ role: "tool", tool_call_id: tc.id || toolMsg.id, name: "(unknown)", content: errorMsg });
+            continue;
+          }
+
           currentTool.value = tc.function.name;
           let args: any;
           try {
             args = JSON.parse(tc.function.arguments);
           } catch (e) {
-            const errorMsg = "Invalid JSON in arguments. Please escape all paths and retry.";
+            const errorMsg = "Malformed tool arguments (stream may have been truncated). Please retry the tool call with valid JSON.";
             const toolMsg: ChatMessage = { id: crypto.randomUUID(), role: "tool", content: errorMsg, tool_call_id: tc.id, name: tc.function.name, timestamp: Date.now() };
             messages.value.push(toolMsg);
             apiMessages.push({ role: "tool", tool_call_id: tc.id, name: tc.function.name, content: errorMsg });
@@ -786,11 +806,21 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
         }
         currentTool.value = null;
       } catch (e) {
-        assistant.content = assistant.content || `Error: ${e}`;
-        assistant.error = String(e);
         assistant.isStreaming = false;
         unlistenChunk();
         unlistenError();
+        // If we still have round budget and received nothing (pure network error
+        // before any chunk), give the model one text-only recovery round instead
+        // of killing the whole loop mid-flight.
+        if (round < MAX_TOOL_ROUNDS - 1 && !assistant.content && !assistant.error) {
+          apiMessages.push({
+            role: "system",
+            content: "The previous response was interrupted by a network error. Summarize what you have so far and answer the user in text only.",
+          });
+          continue;
+        }
+        assistant.content = assistant.content || `Error: ${e}`;
+        assistant.error = String(e);
         success = false;
         break;
       }
