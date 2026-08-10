@@ -18,7 +18,27 @@ pub async fn execute_tool(app: &AppHandle, name: &str, args: &Value) -> Result<S
         "read_file" => {
             let path = args["path"].as_str().ok_or("missing path")?;
             let resolved = resolve_ws_path(args, path);
-            crate::commands::fs::read_file(resolved)
+            let ws = args["workspace_path"].as_str().map(|s| s.to_string());
+            let note = ws.as_deref().and_then(|w| {
+                crate::commands::fs::get_annotations(app.clone(), w.to_string())
+                    .ok()
+                    .and_then(|m| m.get(&rel_to_workspace(w, &resolved)).cloned())
+                    .filter(|n| !n.trim().is_empty())
+            });
+            match crate::commands::fs::read_file(resolved.clone()) {
+                Ok(content) => match note {
+                    Some(n) => Ok(format!("{content}\n\n[User annotation]\n{n}")),
+                    None => Ok(content),
+                },
+                // Binary or otherwise unreadable: surface the annotation as the
+                // only textual information the user has given about this file.
+                Err(e) => match note {
+                    Some(n) => Ok(format!(
+                        "Binary file — cannot preview its text content.\nUser annotation: {n}"
+                    )),
+                    None => Err(e),
+                },
+            }
         }
         "list_dir" => {
             let ws = args["workspace_path"]
@@ -150,6 +170,20 @@ fn resolve_ws_path(args: &Value, path: &str) -> String {
         Path::new(ws).join(path).to_string_lossy().to_string()
     } else {
         path.into()
+    }
+}
+
+/// Relative path from the workspace root (forward slashes), matching the keys
+/// used by the frontend when saving annotations.
+fn rel_to_workspace(workspace: &str, path: &str) -> String {
+    let ws = workspace.replace('\\', "/").trim_end_matches('/').to_string();
+    let p = path.replace('\\', "/");
+    match p.strip_prefix(&format!("{ws}/")) {
+        Some(rest) => rest.to_string(),
+        None => Path::new(path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default(),
     }
 }
 

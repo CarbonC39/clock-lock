@@ -87,7 +87,7 @@ const NATIVE_TOOLS = [
     function: {
       name: "read_file",
       description:
-        "Read a text file in the workspace. Use only to gather evidence for advice or tracking. Never use it to modify anything.",
+        "Read a text file in the workspace. For binary files (images, archives, etc.) it returns the user's saved annotation for that file when one exists. Use only to gather evidence for advice or tracking. Never use it to modify anything.",
       parameters: {
         type: "object",
         properties: {
@@ -488,11 +488,29 @@ export const useAgentStore = defineStore("agent", () => {
     }
   }
 
+  async function getAnnotationsContextLine(): Promise<string | null> {
+    const workspace = useWorkspaceStore();
+    if (!workspace.path) return null;
+    try {
+      const annotations: Record<string, string> = await invoke("get_annotations", {
+        workspacePath: workspace.path,
+      });
+      const rels = Object.keys(annotations).filter((r) => annotations[r].trim());
+      if (!rels.length) return null;
+      const shown = rels.slice(0, 5);
+      const more = rels.length - shown.length;
+      return `* Annotated files: ${shown.join(", ")}${more > 0 ? ` (+${more} more)` : ""}`;
+    } catch {
+      return null;
+    }
+  }
+
   async function buildSystemPrompt(): Promise<string> {
     const workspace = useWorkspaceStore();
     const settings = useSettingsStore();
     const activity = buildRecentActivitySummary();
     const gitLine = await getGitContextLine();
+    const annotationsLine = await getAnnotationsContextLine();
     const personality = settings.settings.personality.trim();
     const personalitySection = personality
       ? `\n# Personality\n\n${personality}\n`
@@ -578,7 +596,7 @@ If the user ignores or rejects a suggestion, move on. Do not repeat it or nag.
 Use the narrowest tool that provides the evidence needed.
 
 * \`read_home_md\` — tracked project state and progress.
-* \`read_file\`, \`list_dir\`, \`search_files\` — inspect the workspace before advising about its contents.
+* \`read_file\`, \`list_dir\`, \`search_files\` — inspect the workspace before advising. \`read_file\` on binary files returns the user's annotation; an error means no readable text.
 * \`get_git_status\`, \`get_git_diff\` — verify repository changes, progress, or review work.
 * \`run_bash\` — read-only inspection requiring a specific shell command.
 * \`search_memory\` — recover earlier decisions or context.
@@ -609,7 +627,7 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
 
 * Workspace: ${workspace.name || "none"}
 * Workspace path: ${workspace.path || "none"}
-* Active file: ${workspace.selectedFilePath || "none"}${activity ? `\n- Recent activity: ${activity}` : ""}${gitLine ? `\n${gitLine}` : ""}`;
+* Active file: ${workspace.selectedFilePath || "none"}${activity ? `\n- Recent activity: ${activity}` : ""}${gitLine ? `\n${gitLine}` : ""}${annotationsLine ? `\n${annotationsLine}` : ""}`;
   }
 
   function injectWorkspace(args: Record<string, any>): Record<string, any> {
