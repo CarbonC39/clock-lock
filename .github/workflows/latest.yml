@@ -8,7 +8,6 @@ on:
       - 'IMPL.md'
       - 'MODULES.md'
       - 'LICENSE'
-      - '.github/**'
   workflow_dispatch:
 
 concurrency:
@@ -116,33 +115,42 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh release delete latest --yes --cleanup-tag || true
 
-          # Flatten per-target artifact folders, uniquifying the macOS
-          # .app bundle / tarball which both macOS arches produce with
-          # identical names.
+          # Artifact bundles keep their source layout (deb/, dmg/, macos/, ...),
+          # so walk them recursively. The macOS `.app` is a *directory*, which
+          # gh cannot upload, so package each one as a tarball named by target.
+          shopt -s nullglob
           mkdir -p assets
           for dir in bundles/bundle-*; do
             target="${dir#bundles/bundle-}"
-            for entry in "$dir"/*; do
+            while IFS= read -r -d '' entry; do
               base="$(basename "$entry")"
-              case "$base" in
-                *.app.tar.gz) cp "$entry" "assets/${base%.app.tar.gz}-${target}.app.tar.gz" ;;
-                *.app)        cp -R "$entry" "assets/${base%.app}-${target}.app" ;;
-                *)            cp "$entry" "assets/$base" ;;
-              esac
-            done
+              if [[ -d "$entry" && "$base" == *.app ]]; then
+                tar -czf "assets/${base%.app}-${target}.app.tar.gz" -C "$(dirname "$entry")" "$base"
+              elif [[ -f "$entry" && "$entry" != */*.app/* ]]; then
+                cp "$entry" "assets/$base"
+              fi
+            done < <(find "$dir" -mindepth 1 -print0)
           done
+
+          assets=(assets/*)
+          if [[ ${#assets[@]} -eq 0 ]]; then
+            echo "::error::No build artifacts found; nothing to publish."
+            exit 1
+          fi
+
+          # This job does not check out the repo, so point gh at it explicitly.
+          gh release delete -R "${{ github.repository }}" latest --yes --cleanup-tag || true
 
           NOTES="Automatic build from main branch.
 
           - Commit: $GITHUB_SHA (run #${{ github.run_number }})
           - Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           - Platforms: Linux x86_64 · Linux ARM64 · macOS (arm64 + x86_64) · Windows x86_64"
-          gh release create latest --target "$GITHUB_SHA" \
+          gh release create -R "${{ github.repository }}" latest --target "$GITHUB_SHA" \
             --title "Latest build · $(date -u +%Y-%m-%d)" \
             --notes "$NOTES" \
-            assets/*
+            "${assets[@]}"
 
       - name: Show release URL
         run: |
