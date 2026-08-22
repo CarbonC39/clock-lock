@@ -3,7 +3,7 @@ import { ref, computed, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
 import {
-  FolderOpen, RotateCw, UtensilsCrossed, ExternalLink, FileText, PanelLeftClose,
+  FolderOpen, RotateCw, Paperclip, ExternalLink, FileText, PanelLeftClose,
 } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useUiStore } from "../stores/uiStore";
@@ -78,7 +78,19 @@ watch(
 function feedToAgent() {
   if (!workspace.selectedFilePath || agent.isBusy) return;
   const rel = relPath();
-  agent.sendMessage(`Take a look at \`${rel}\` — walk me through what it does and anything worth noting.`);
+  const name = selectedName.value ?? rel;
+  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  const visionReady = new Set(["png", "jpg", "jpeg", "webp", "gif"]);
+  if (workspace.selectedFileContent !== null) {
+    agent.queueAttachment({ path: rel, name, kind: "text", content: workspace.selectedFileContent });
+  } else if (imageDataUrl.value && visionReady.has(ext)) {
+    agent.queueAttachment({ path: rel, name, kind: "image", dataUrl: imageDataUrl.value });
+  } else {
+    agent.queueAttachment({
+      path: rel, name, kind: "binary",
+      description: annotationNote.value.trim() || `${ext ? ext.toUpperCase() : "Binary"} file; no readable text or compatible image preview was supplied.`,
+    });
+  }
   ui.setTab("chat");
 }
 
@@ -145,9 +157,9 @@ async function saveAnnotation() {
         <button class="view-act" title="Open in system app" @click="openExternally">
           <ExternalLink :size="13" />
         </button>
-        <button class="view-act feed" :disabled="agent.isBusy" title="Ask the agent to read this" @click="feedToAgent">
-          <UtensilsCrossed :size="13" />
-          <span>Feed</span>
+        <button class="view-act feed" :disabled="agent.isBusy" title="Attach this file to chat" @click="feedToAgent">
+          <Paperclip :size="13" />
+          <span>Attach</span>
         </button>
       </header>
 

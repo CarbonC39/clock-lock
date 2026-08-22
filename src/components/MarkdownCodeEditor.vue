@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { EditorState } from "@codemirror/state";
-import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { EditorView, keymap, placeholder as placeholderExtension } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
 import { history, defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -84,7 +84,7 @@ onMounted(() => {
       if (u.docChanged) emit("update:modelValue", u.state.doc.toString());
       if (u.focusChanged && !u.view.hasFocus) emit("blur");
     }),
-    ...(props.placeholder ? [placeholder(props.placeholder)] : []),
+    ...(props.placeholder ? [placeholderExtension(props.placeholder)] : []),
   ];
 
   view = new EditorView({

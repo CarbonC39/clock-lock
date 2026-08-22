@@ -4,7 +4,7 @@ mod git_tracker;
 mod supervision;
 mod watcher;
 
-use commands::agent::chat_stream;
+use commands::agent::{cancel_chat, chat_stream, ChatCancelState};
 use commands::fs::{
     add_todo_cmd, apply_diff_patch, delete_todo, ensure_home_md, get_annotations, get_git_snapshot,
     get_git_status, get_last_workspace, get_workspace_hash, list_dir, open_in_explorer, read_file,
@@ -44,6 +44,7 @@ pub fn run() {
         .manage(WatcherState::new())
         .manage(SupervisionState::new())
         .manage(GitTrackerState::new())
+        .manage(ChatCancelState::new())
         .manage(DbPoolCache(std::sync::Mutex::new(std::collections::HashMap::new())))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -79,6 +80,7 @@ pub fn run() {
             stop_watching,
             // agent
             chat_stream,
+            cancel_chat,
             // settings
             get_settings,
             save_settings,

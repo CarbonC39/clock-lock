@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
-import { SendHorizonal, Settings2, Trash2, ScanEye, ChevronDown, ChevronUp, Square } from "lucide-vue-next";
+import { SendHorizonal, Settings2, Trash2, ScanEye, ChevronDown, ChevronUp, Square, FileText, X } from "lucide-vue-next";
 import { useAgentStore, getSlashCommands } from "../stores/agentStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSupervisionStore } from "../stores/supervisionStore";
@@ -31,7 +31,7 @@ watch(() => agent.messages, scrollToBottom, { deep: true });
 
 async function send() {
   const text = inputText.value.trim();
-  if (!text || agent.isBusy) return;
+  if ((!text && !agent.pendingAttachments.length) || agent.isBusy) return;
   inputText.value = "";
   await agent.sendMessage(text);
   sv.reportActivity();
@@ -140,6 +140,14 @@ onUnmounted(() => {
 
     <!-- ── Input ── -->
     <div class="input-area">
+      <div v-if="agent.pendingAttachments.length" class="attachment-list">
+        <div v-for="attachment in agent.pendingAttachments" :key="attachment.path" class="attachment-chip">
+          <FileText :size="12" />
+          <span>{{ attachment.name }}</span>
+          <small v-if="attachment.truncated">truncated</small>
+          <button title="Remove attachment" @click="agent.removeAttachment(attachment.path)"><X :size="11" /></button>
+        </div>
+      </div>
       <!-- Slash shortcuts -->
       <div class="shortcuts-bar">
         <button class="shortcuts-toggle" @click="shortcutsOpen = !shortcutsOpen">
@@ -172,7 +180,7 @@ onUnmounted(() => {
         <button
           class="send-btn"
           :class="{ 'is-stop': agent.isBusy }"
-          :disabled="!agent.isBusy && !inputText.trim()"
+          :disabled="!agent.isBusy && !inputText.trim() && !agent.pendingAttachments.length"
           :title="agent.isBusy ? 'Stop' : 'Send'"
           @click="agent.isBusy ? agent.stopGeneration() : send()"
         >
@@ -403,6 +411,17 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 5px;
 }
+
+.attachment-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.attachment-chip {
+  display: flex; align-items: center; gap: 5px; max-width: 260px;
+  padding: 4px 6px 4px 8px; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); color: var(--color-text-secondary);
+  background: var(--color-surface-hover); font-size: 11px;
+}
+.attachment-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-chip small { color: var(--color-accent-yellow); }
+.attachment-chip button { display: flex; padding: 1px; border: 0; background: none; color: var(--color-text-muted); cursor: pointer; }
 
 .input-row {
   display: flex;

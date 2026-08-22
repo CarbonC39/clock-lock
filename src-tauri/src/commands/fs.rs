@@ -34,11 +34,12 @@ pub struct HomeData {
 
 // ── HomeData helpers ──────────────────────────────────────────────────────────
 
-fn canonical_section(heading: &str) -> &'static str {
+fn canonical_section(heading: &str) -> Option<&'static str> {
     match heading.trim().to_lowercase().as_str() {
-        "overview" | "about" | "project" | "description" => "overview",
-        "todos" | "todo" | "tasks" | "my tasks" | "task list" | "progress" | "in progress" => "todos",
-        _ => "notes",
+        "overview" | "about" | "project" | "description" => Some("overview"),
+        "todos" | "todo" | "tasks" | "my tasks" | "task list" | "progress" | "in progress" => Some("todos"),
+        "notes" | "note" => Some("notes"),
+        _ => None,
     }
 }
 
@@ -66,11 +67,11 @@ pub fn home_from_str(s: &str) -> HomeData {
     let mut sections: Vec<(&'static str, String)> = Vec::new();
 
     for line in s.lines() {
-        if let Some(heading) = line.strip_prefix("# ") {
-            if let Some(key) = cur_key.take() {
-                sections.push((key, std::mem::take(&mut cur_body).trim().to_string()));
+        if let Some(key) = line.strip_prefix("# ").and_then(canonical_section) {
+            if let Some(previous_key) = cur_key.take() {
+                sections.push((previous_key, std::mem::take(&mut cur_body).trim().to_string()));
             }
-            cur_key = Some(canonical_section(heading));
+            cur_key = Some(key);
         } else if cur_key.is_some() {
             cur_body.push_str(line);
             cur_body.push('\n');
@@ -829,6 +830,24 @@ mod tests {
     #[test]
     fn test_status_clean() {
         assert_eq!(status_to_code(git2::Status::CURRENT), "");
+    }
+
+    #[test]
+    fn home_parser_keeps_content_headings_in_their_section() {
+        let parsed = home_from_str(
+            "# Overview\n\nClock Lock\n\n# Architecture\n\nVue and Rust.\n\n# Todos\n\n- [ ] Test it\n\n# Notes\n\nExisting note.\n",
+        );
+        assert_eq!(parsed.overview, "Clock Lock\n\n# Architecture\n\nVue and Rust.");
+        assert_eq!(parsed.todos.len(), 1);
+        assert_eq!(parsed.notes, "Existing note.");
+    }
+
+    #[test]
+    fn home_parser_still_accepts_legacy_section_aliases() {
+        let parsed = home_from_str("# Project\n\nOverview text\n\n# Tasks\n\n- [x] Done\n\n# Note\n\nKept\n");
+        assert_eq!(parsed.overview, "Overview text");
+        assert!(parsed.todos[0].done);
+        assert_eq!(parsed.notes, "Kept");
     }
 
     // ── build_status_map smoke test (non-repo dir) ──

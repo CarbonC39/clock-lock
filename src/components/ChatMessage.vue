@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { marked } from "marked";
-import { Wrench, ChevronDown, ChevronRight, Brain, ListTodo } from "lucide-vue-next";
+import { Wrench, ChevronDown, ChevronRight, Brain, ListTodo, FileText, Image } from "lucide-vue-next";
 import type { ChatMessage } from "../stores/agentStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -189,7 +189,16 @@ function renderMd(src: string): string {
 
   <!-- User message -->
   <div v-else-if="message.role === 'user'" class="msg-user">
-    <div class="bubble-user">{{ message.content }}</div>
+    <div class="bubble-user">
+      <div v-if="message.attachments?.length" class="sent-attachments">
+        <span v-for="attachment in message.attachments" :key="attachment.path" class="sent-attachment">
+          <Image v-if="attachment.kind === 'image'" :size="11" />
+          <FileText v-else :size="11" />
+          {{ attachment.name }}<small v-if="attachment.truncated"> · truncated</small>
+        </span>
+      </div>
+      <div>{{ message.content }}</div>
+    </div>
   </div>
 
   <!-- Assistant message -->
@@ -407,6 +416,14 @@ function renderMd(src: string): string {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.sent-attachments { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.sent-attachment {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px;
+  border-radius: 5px; background: color-mix(in srgb, var(--color-accent-blue) 18%, var(--color-surface));
+  font-family: var(--font-mono); font-size: 10.5px;
+}
+.sent-attachment small { color: var(--color-text-muted); }
 
 /* ── Assistant ── */
 .msg-assistant {

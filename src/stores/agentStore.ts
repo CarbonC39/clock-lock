@@ -34,6 +34,17 @@ export interface ChatMessage {
   checkinMeta?: CheckinMeta;
   /** Set only on system-note messages emitted by the git-tracker / self-check-in. */
   initiatedBy?: SelfInitiatedBy;
+  attachments?: ChatAttachment[];
+}
+
+export interface ChatAttachment {
+  path: string;
+  name: string;
+  kind: "text" | "image" | "binary";
+  content?: string;
+  dataUrl?: string;
+  description?: string;
+  truncated?: boolean;
 }
 
 export interface GitSnapshot {
@@ -328,7 +339,7 @@ function expandSlashCommand(cmd: string, workspace: ReturnType<typeof useWorkspa
       return `Initialize this workspace. Path: "${workspace.path}"\n\nSteps (briefly tell the user your plan in one line, then execute in order):\n1. Call \`list_dir\` to get the full structure. Read key files (README, package.json, Cargo.toml).\n2. Call \`update_overview\` to write a 2-3 sentence project description (what it is, its tech stack).\n3. Call \`add_todo\` 1-2 times to add the first micro-tasks (each ≤15 min).\n4. Close with: what you found, the single most important first step, and ask if that's where they want to start.\n\nFile tree preview:\n${fileList}`;
     }
     case "/summarize":
-      return `Condense our conversation into one supportive paragraph that captures the current progress and key decisions, so I can keep tracking where things stand.`;
+      return `Summarize only the progress and key decisions explicitly stated in our conversation. Use one concise paragraph. Do not use tools, modify home.md, invent or infer Todos, recommend next steps, or do any work beyond the summary.`;
     case "/help":
       return null;
     default:
@@ -351,12 +362,14 @@ export const useAgentStore = defineStore("agent", () => {
   const isBusy = ref(false);
   const currentTool = ref<string | null>(null);
   const convId = ref<string | null>(null);
+  const pendingAttachments = ref<ChatAttachment[]>([]);
   // Lightweight, in-memory hint of the file the user most recently touched —
   // used for the soft status line near the pet and to ground check-ins. No git,
   // no persistence growth (the durable copy lives in session_state).
   const recentFocus = ref<{ file: string; at: number } | null>(null);
   let happyTimeoutId: ReturnType<typeof setTimeout> | null = null;
   let cancelRequested = false;
+  let activeAssistantId: string | null = null;
   let msgCounter = 0;
   let lastSummarizeAt = 0;
   let unlistenFsChange: (() => void) | null = null;
@@ -383,8 +396,8 @@ export const useAgentStore = defineStore("agent", () => {
         body: JSON.stringify({
           model: settings.settings.model,
           messages: [
-            { role: "system", content: "Summarize the current progress and key decisions of this conversation in one short, encouraging paragraph, so it can be used for progress tracking." },
-            ...messages.value.slice(-10).map(m => ({ role: m.role, content: m.content }))
+            { role: "system", content: "Summarize only facts, progress, and decisions explicitly present in the conversation. Write one short paragraph for future context. Do not invent, infer, recommend, or add todos, next steps, commitments, or work that was not stated." },
+            ...messages.value.filter(m => m.role === "user" || m.role === "assistant").slice(-10).map(m => ({ role: m.role, content: m.content }))
           ],
           temperature: 0.3,
           max_tokens: 150
@@ -524,7 +537,7 @@ You supervise and advise. The user does the work.
 ${personalitySection}
 # Project State
 
-Each workspace has one agent-managed file: \`home.md\`.
+Each workspace has one \`home.md\` file, jointly maintained by the user and you.
 It contains exactly three semantic sections:
 
 * **Overview** — what the project is, its architecture, stack, and other durable project context.
@@ -558,6 +571,13 @@ For project code or configuration:
 \`run_bash\` is read-only. Use it only for inspection. If a mutating shell command would help, show it to the user instead of executing it.
 
 # Operating Rules
+
+## Follow the requested scope
+
+First identify the user's requested job: answer, inspect, summarize, review, plan, or maintain project state. Do only that job.
+Do not turn a summary into planning, invent Todos, add Notes, update Overview, or perform any other side work unless the user explicitly asked for it or the active command explicitly requires it.
+Treat write tools as side effects, never as a default sign of helpfulness. When the user asks only to summarize, explain, inspect, or review, do not call any write tool.
+Never fabricate tasks, progress, decisions, or facts to make a response feel complete. State when evidence is absent.
 
 ## Ground claims in state
 
@@ -642,7 +662,28 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
     return args;
   }
 
-  async function buildApiMessages(userText: string): Promise<any[]> {
+  function apiContent(text: string, attachments?: ChatAttachment[]): any {
+    if (!attachments?.length) return text;
+    const parts: any[] = [{ type: "text", text }];
+    for (const attachment of attachments) {
+      if (attachment.kind === "image" && attachment.dataUrl) {
+        parts.push({ type: "text", text: `Attached image: ${attachment.path}` });
+        parts.push({ type: "image_url", image_url: { url: attachment.dataUrl } });
+      } else if (attachment.kind === "text") {
+        const note = attachment.truncated ? " (truncated: beginning and end included)" : "";
+        parts.push({ type: "text", text: `Attached file: ${attachment.path}${note}\n\n${attachment.content ?? ""}` });
+      } else {
+        parts.push({ type: "text", text: `Attached binary file: ${attachment.path}\nDescription: ${attachment.description || "No readable text or user description is available."}` });
+      }
+    }
+    return parts;
+  }
+
+  function messageApiContent(message: ChatMessage): any {
+    return apiContent(message.content || "", message.attachments);
+  }
+
+  async function buildApiMessages(userText: string, attachments?: ChatAttachment[]): Promise<any[]> {
     const settings = useSettingsStore();
     return [
       { role: "system", content: await buildSystemPrompt() },
@@ -661,12 +702,12 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
         .slice(-settings.settings.max_context_messages)
         .map(m => ({
           role: m.role,
-          content: m.content || "",
+          content: messageApiContent(m),
           ...(m.tool_calls   ? { tool_calls:   m.tool_calls }   : {}),
           ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
           ...(m.name         ? { name:         m.name }         : {}),
         })),
-      { role: "user", content: userText },
+      { role: "user", content: apiContent(userText, attachments) },
     ];
   }
 
@@ -690,7 +731,7 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
         .slice(-settings.settings.max_context_messages)
         .map(m => ({
           role: m.role,
-          content: m.content || "",
+          content: messageApiContent(m),
           ...(m.tool_calls   ? { tool_calls:   m.tool_calls }   : {}),
           ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
           ...(m.name         ? { name:         m.name }         : {}),
@@ -710,14 +751,14 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
     const settings = useSettingsStore();
     const workspace = useWorkspaceStore();
 
-    cancelRequested = false;
     let success = true;
 
     // Loop runs up to MAX_TOOL_ROUNDS tool-calling rounds, then one guaranteed text-only round.
-    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+    rounds: for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       if (cancelRequested) { success = false; break; }
       const isTextOnlyRound = round === MAX_TOOL_ROUNDS;
       const assistantId = crypto.randomUUID();
+      activeAssistantId = assistantId;
       const assistantMsg: ChatMessage = { id: assistantId, role: "assistant", content: "", timestamp: Date.now(), isStreaming: true };
       messages.value.push(assistantMsg);
 
@@ -755,8 +796,10 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
         });
 
         assistant.isStreaming = false;
+        if (activeAssistantId === assistantId) activeAssistantId = null;
         unlistenChunk();
         unlistenError();
+        if (cancelRequested) { success = false; break; }
         if (assistant.error) {
           // One recovery chance: let the model wrap up in text instead of dying
           // on a transient API/stream error.
@@ -780,6 +823,7 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
         apiMessages.push({ role: "assistant", content: assistant.content || "", tool_calls: toolCalls });
 
         for (const tc of toolCalls) {
+          if (cancelRequested) { success = false; break rounds; }
           // Reject tool calls that lost their name mid-stream (truncated SSE).
           if (!tc.function?.name) {
             const errorMsg = "Tool call was missing a function name (stream interrupted). Skip.";
@@ -813,6 +857,7 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
           } catch (e) {
             result = `Error: ${e}`;
           }
+          if (cancelRequested) { success = false; break rounds; }
 
           const toolMsg: ChatMessage = { id: crypto.randomUUID(), role: "tool", content: result, tool_call_id: tc.id, name: tc.function.name, timestamp: Date.now() };
           messages.value.push(toolMsg);
@@ -824,6 +869,7 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
         }
         currentTool.value = null;
       } catch (e) {
+        if (activeAssistantId === assistantId) activeAssistantId = null;
         assistant.isStreaming = false;
         unlistenChunk();
         unlistenError();
@@ -859,13 +905,14 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
     isBusy.value = false;
   }
 
-  async function sendMessage(text: string) {
-    if (!text.trim() || isBusy.value) return;
+  async function sendMessage(text: string, suppliedAttachments?: ChatAttachment[]) {
+    const attachments = suppliedAttachments ?? pendingAttachments.value;
+    if ((!text.trim() && !attachments.length) || isBusy.value) return;
     const settings = useSettingsStore();
     const workspace = useWorkspaceStore();
     if (!settings.settings.base_url) { pushNote("Configure AI in Settings first."); return; }
 
-    const trimmed = text.trim();
+    const trimmed = text.trim() || "Review the attached file.";
     let userText = trimmed;
     if (trimmed.startsWith("/")) {
       const expanded = expandSlashCommand(trimmed, workspace);
@@ -882,14 +929,16 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
     }
 
     isBusy.value = true;
+    cancelRequested = false;
     state.value = "thinking";
     if (happyTimeoutId) { clearTimeout(happyTimeoutId); happyTimeoutId = null; }
 
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed, timestamp: Date.now() };
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed, timestamp: Date.now(), ...(attachments.length ? { attachments: [...attachments] } : {}) };
     messages.value.push(userMsg);
+    if (!suppliedAttachments) pendingAttachments.value = [];
     persistMessage(userMsg);
 
-    const apiMessages = await buildApiMessages(userText);
+    const apiMessages = await buildApiMessages(userText || trimmed, attachments);
     await runToolLoop(apiMessages, { endState: "happy", markCounter: true });
     reportAgentActivity();
   }
@@ -904,6 +953,7 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
 
     pushNote(label, { initiatedBy: kind === "git-update" ? "git-tracker" : "self-checkin" });
     isBusy.value = true;
+    cancelRequested = false;
     state.value = "thinking";
     if (happyTimeoutId) { clearTimeout(happyTimeoutId); happyTimeoutId = null; }
 
@@ -922,7 +972,24 @@ When useful, end with 1–3 low-effort next actions the user can choose from. Do
     }
   }
 
-  function stopGeneration() { cancelRequested = true; }
+  function stopGeneration() {
+    cancelRequested = true;
+    currentTool.value = null;
+    if (activeAssistantId) invoke("cancel_chat", { msgId: activeAssistantId }).catch(console.warn);
+  }
+
+  function queueAttachment(attachment: ChatAttachment) {
+    const normalized = { ...attachment };
+    if (normalized.kind === "text" && normalized.content && normalized.content.length > 40_000) {
+      normalized.content = `${normalized.content.slice(0, 30_000)}\n\n[... middle truncated by Clock Lock ...]\n\n${normalized.content.slice(-10_000)}`;
+      normalized.truncated = true;
+    }
+    pendingAttachments.value = [...pendingAttachments.value.filter(item => item.path !== normalized.path), normalized].slice(-3);
+  }
+
+  function removeAttachment(path: string) {
+    pendingAttachments.value = pendingAttachments.value.filter(item => item.path !== path);
+  }
   function pushNote(text: string, opts?: { initiatedBy?: SelfInitiatedBy }) {
     messages.value.push({
       id: crypto.randomUUID(),
@@ -1054,9 +1121,10 @@ Don't \`read_home_md\` unless you genuinely need more than the top todo I gave y
     const workspace = useWorkspaceStore();
     if (workspace.hash && convId.value) invoke("clear_conversation", { workspaceHash: workspace.hash, convId: convId.value }).catch(console.warn);
     messages.value = [];
+    pendingAttachments.value = [];
     state.value = "idle";
     isBusy.value = false;
   }
 
-  return { messages, state, isBusy, currentTool, recentFocus, sendMessage, promptSelf, stopGeneration, pushNote, pushCheckin, snoozeCheckin, setState, clear, loadConversation };
+  return { messages, state, isBusy, currentTool, recentFocus, pendingAttachments, sendMessage, promptSelf, stopGeneration, queueAttachment, removeAttachment, pushNote, pushCheckin, snoozeCheckin, setState, clear, loadConversation };
 });
