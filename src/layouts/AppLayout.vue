@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
 import { FolderOpen } from "lucide-vue-next";
 import Topbar from "../components/Topbar.vue";
 import TodoCard from "../components/TodoCard.vue";
@@ -9,6 +10,7 @@ import SettingsDrawer from "../components/SettingsDrawer.vue";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useUiStore } from "../stores/uiStore";
 
+const { t } = useI18n();
 const workspace = useWorkspaceStore();
 const ui = useUiStore();
 </script>
