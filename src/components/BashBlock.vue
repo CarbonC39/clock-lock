@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { Play, ShieldAlert, ShieldCheck, ShieldX, RotateCw } from "lucide-vue-next";
@@ -83,20 +85,20 @@ async function run() {
       </div>
 
       <div class="bash-controls">
-        <span v-if="runState === 'running'" class="run-label">Running…</span>
+        <span v-if="runState === 'running'" class="run-label">{{ t('Running…') }}</span>
 
         <button
           v-else-if="safety === 'unsafe' && runState === 'idle'"
           class="approve-btn"
           @click="run"
         >
-          <Play :size="10" /> Approve &amp; Run
+          <Play :size="10" /> {{ t('Approve & Run') }}
         </button>
 
         <button
           v-else-if="runState === 'done' || runState === 'error'"
           class="rerun-btn"
-          title="Re-run"
+          :title="t('Re-run')"
           @click="run"
         >
           <RotateCw :size="10" />
@@ -113,7 +115,7 @@ async function run() {
       <template v-else>
         <pre v-if="stdout" class="output-stdout">{{ stdout }}</pre>
         <pre v-if="stderr" class="output-stderr">{{ stderr }}</pre>
-        <div v-if="!stdout && !stderr" class="output-empty">(no output)</div>
+        <div v-if="!stdout && !stderr" class="output-empty">{{ t('(no output)') }}</div>
       </template>
     </div>
   </div>

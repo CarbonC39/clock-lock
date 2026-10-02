@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from "vue";
 import { SendHorizonal, Settings2, Trash2, ScanEye, ChevronDown, ChevronUp, Square, FileText, X } from "lucide-vue-next";
 import { useAgentStore, getSlashCommands } from "../stores/agentStore";
@@ -76,24 +78,24 @@ onUnmounted(() => {
     <!-- ── Header ── -->
     <div class="panel-header">
       <AgentPet :state="agent.state" size="md" class="header-pet" />
-      <span class="panel-title">Agent</span>
+      <span class="panel-title">{{ t('Agent') }}</span>
       <transition name="focus-fade">
         <span v-if="recentFocusLabel" class="focus-line">
-          was in <code>{{ recentFocusLabel.file }}</code> {{ recentFocusLabel.when }}
+          {{ t('was in') }} <code>{{ recentFocusLabel.file }}</code> {{ recentFocusLabel.when }}
         </span>
       </transition>
       <div class="header-actions">
         <button
           v-if="agent.messages.length"
           class="hdr-btn"
-          title="Clear chat"
+          :title="t('Clear chat')"
           @click="agent.clear()"
         >
           <Trash2 :size="12" />
         </button>
         <button
           class="hdr-btn"
-          title="Settings"
+          :title="t('Settings')"
           @click="ui.toggleSettings()"
         >
           <Settings2 :size="12" />
@@ -107,13 +109,13 @@ onUnmounted(() => {
       <div v-if="!agent.messages.length" class="intro">
         <AgentPet :state="agent.state" size="lg" />
         <p class="intro-text">
-          Hey, I'm Clock Lock — your dev coworker.<br>
-          Open a workspace, or just tell me what you're working on.
+          {{ t("Hey, I'm Clock Lock — your dev coworker.") }}<br>
+          {{ t("Open a workspace, or just tell me what you're working on.") }}
         </p>
         <div v-if="!settings.settings.api_key && settings.settings.provider === 'cloud'" class="setup-hint">
-          Configure your API key in
-          <button class="link-btn" @click="ui.toggleSettings()">Settings</button>
-          to get started.
+          {{ t('Configure your API key in') }}
+          <button class="link-btn" @click="ui.toggleSettings()">{{ t('Settings') }}</button>
+          {{ t('to get started.') }}
         </div>
       </div>
 
@@ -123,11 +125,11 @@ onUnmounted(() => {
         class="scan-prompt"
       >
         <p>
-          This looks like a new project. I can scan the files and write an overview to <strong>home.md</strong>.
+          {{ t('This looks like a new project. I can scan the files and write an overview to') }} <strong>home.md</strong>.
         </p>
         <button class="scan-btn" :disabled="agent.isBusy" @click="agent.sendMessage('/scan')">
           <ScanEye :size="14" />
-          Scan &amp; summarize
+          {{ t('Scan & summarize') }}
         </button>
       </div>
 
@@ -144,15 +146,15 @@ onUnmounted(() => {
         <div v-for="attachment in agent.pendingAttachments" :key="attachment.path" class="attachment-chip">
           <FileText :size="12" />
           <span>{{ attachment.name }}</span>
-          <small v-if="attachment.truncated">truncated</small>
-          <button title="Remove attachment" @click="agent.removeAttachment(attachment.path)"><X :size="11" /></button>
+          <small v-if="attachment.truncated">{{ t('truncated') }}</small>
+          <button :title="t('Remove attachment')" @click="agent.removeAttachment(attachment.path)"><X :size="11" /></button>
         </div>
       </div>
       <!-- Slash shortcuts -->
       <div class="shortcuts-bar">
         <button class="shortcuts-toggle" @click="shortcutsOpen = !shortcutsOpen">
           <component :is="shortcutsOpen ? ChevronDown : ChevronUp" :size="10" />
-          Quick actions
+          {{ t('Quick actions') }}
         </button>
         <div v-if="shortcutsOpen" class="shortcuts-list">
           <button
@@ -171,7 +173,7 @@ onUnmounted(() => {
         <textarea
           v-model="inputText"
           class="chat-input"
-          placeholder="Ask me anything… (Enter to send)"
+          :placeholder="t('Ask me anything… (Enter to send)')"
           rows="1"
           :disabled="agent.isBusy"
           @keydown="onKeydown"
@@ -181,7 +183,7 @@ onUnmounted(() => {
           class="send-btn"
           :class="{ 'is-stop': agent.isBusy }"
           :disabled="!agent.isBusy && !inputText.trim() && !agent.pendingAttachments.length"
-          :title="agent.isBusy ? 'Stop' : 'Send'"
+          :title="agent.isBusy ? t('Stop') : t('Send')"
           @click="agent.isBusy ? agent.stopGeneration() : send()"
         >
           <Square v-if="agent.isBusy" :size="11" />

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { onMounted, onUnmounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { RotateCw } from "lucide-vue-next";
@@ -31,18 +33,18 @@ onUnmounted(() => {
 <template>
   <div class="file-tree">
     <div class="panel-header">
-      <span class="panel-title">Files</span>
+      <span class="panel-title">{{ t('Files') }}</span>
       <button
         v-if="workspace.path"
         class="refresh-btn"
-        title="Refresh"
+        :title="t('Refresh')"
         @click="workspace.refreshTree()"
       ><RotateCw :size="12" /></button>
     </div>
 
     <div class="panel-body">
       <template v-if="workspace.isLoading">
-        <div class="empty-hint">Loading…</div>
+        <div class="empty-hint">{{ t('Loading…') }}</div>
       </template>
       <template v-else-if="workspace.path">
         <FileTreeNode
@@ -52,10 +54,10 @@ onUnmounted(() => {
           :depth="0"
         />
         <div v-if="workspace.fileTree.length === 0" class="empty-hint">
-          Empty workspace
+          {{ t('Empty workspace') }}
         </div>
       </template>
-      <div v-else class="empty-hint">No workspace open</div>
+      <div v-else class="empty-hint">{{ t('No workspace open') }}</div>
     </div>
   </div>
 </template>

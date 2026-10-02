@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, onMounted, onUnmounted, inject } from "vue";
 import { Settings, FolderOpen, Minus, Square, X, PanelBottom, Sun, Moon } from "lucide-vue-next";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -66,7 +68,7 @@ async function close() {
 
       <button class="open-btn" @click="workspace.openWorkspace()">
         <FolderOpen :size="13" />
-        <span>{{ workspace.name ?? "Open Folder" }}</span>
+        <span>{{ workspace.name ?? t('Open Folder') }}</span>
       </button>
     </div>
 
@@ -74,19 +76,19 @@ async function close() {
          with the content panel below (disabled without a workspace) -->
     <nav class="topbar-tabs" :class="{ disabled: !workspace.path }">
       <button
-        v-for="t in tabs"
-        :key="t.id"
+        v-for="item in tabs"
+        :key="item.id"
         class="app-tab"
-        :class="{ active: ui.currentTab === t.id }"
-        @click="workspace.path && ui.setTab(t.id)"
+        :class="{ active: ui.currentTab === item.id }"
+        @click="workspace.path && ui.setTab(item.id)"
       >
-        {{ t.label }}
+        {{ t(item.label) }}
       </button>
     </nav>
 
     <!-- Right: focus, theme, controls -->
     <div class="topbar-right">
-      <label class="dnd-switch" :class="{ active: sv.dnd }" title="Focus mode — silences check-ins">
+      <label class="dnd-switch" :class="{ active: sv.dnd }" :title="t('Focus mode — silences check-ins')">
         <input
           type="checkbox"
           class="dnd-input"
@@ -94,40 +96,40 @@ async function close() {
           @change="sv.setDnd(!sv.dnd)"
         />
         <span class="dnd-track"><span class="dnd-thumb" /></span>
-        <span class="dnd-label">FOCUS</span>
+        <span class="dnd-label">{{ t('FOCUS') }}</span>
       </label>
 
       <div class="divider-v" />
 
       <button
         class="icon-btn"
-        :title="ui.isDark ? 'Switch to light' : 'Switch to dark'"
+        :title="ui.isDark ? t('Switch to light') : t('Switch to dark')"
         @click="ui.toggleTheme()"
       >
         <component :is="ui.isDark ? Sun : Moon" :size="14" />
       </button>
 
-      <button v-if="toggleWidget" class="icon-btn" title="Widget" @click="toggleWidget">
+      <button v-if="toggleWidget" class="icon-btn" :title="t('Widget')" @click="toggleWidget">
         <PanelBottom :size="14" />
       </button>
 
       <button
         class="icon-btn"
         :class="{ active: ui.settingsOpen }"
-        title="Settings"
+        :title="t('Settings')"
         @click="ui.toggleSettings()"
       >
         <Settings :size="14" />
       </button>
 
       <div class="win-group">
-        <button class="win-btn" title="Minimize" @click="minimize">
+        <button class="win-btn" :title="t('Minimize')" @click="minimize">
           <Minus :size="14" />
         </button>
-        <button class="win-btn" :title="isMaximized ? 'Restore' : 'Maximize'" @click="toggleMaximize">
+        <button class="win-btn" :title="isMaximized ? t('Restore') : t('Maximize')" @click="toggleMaximize">
           <Square :size="11" />
         </button>
-        <button class="win-btn win-close" title="Close" @click="close">
+        <button class="win-btn win-close" :title="t('Close')" @click="close">
           <X :size="14" />
         </button>
       </div>

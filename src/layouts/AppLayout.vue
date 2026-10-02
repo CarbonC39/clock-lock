@@ -32,7 +32,7 @@ const ui = useUiStore();
         </template>
         <button v-else class="open-card" @click="workspace.openWorkspace()">
           <FolderOpen :size="26" />
-          <span>Open a Workspace</span>
+          <span>{{ t('Open a Workspace') }}</span>
         </button>
       </div>
 
@@ -43,7 +43,7 @@ const ui = useUiStore();
         @click="workspace.openWorkspace()"
       >
         <FolderOpen :size="26" />
-        <span>Open a Workspace</span>
+        <span>{{ t('Open a Workspace') }}</span>
       </button>
     </main>
 

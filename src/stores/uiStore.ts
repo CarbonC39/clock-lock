@@ -2,9 +2,21 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 
 export type ThemeMode = "light" | "dark" | "system";
+export type AppLocale = "en" | "zh-CN";
 export type MainTab = "chat" | "files" | "notes";
 
 export const useUiStore = defineStore("ui", () => {
+  const savedLocale = localStorage.getItem("appLocale");
+  const browserLocale: AppLocale = navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
+  const locale = ref<AppLocale>(savedLocale === "zh-CN" || savedLocale === "en" ? savedLocale : browserLocale);
+  document.documentElement.lang = locale.value;
+
+  function setLocale(value: AppLocale) {
+    locale.value = value;
+    localStorage.setItem("appLocale", value);
+    document.documentElement.lang = value;
+  }
+
   const themeMode = ref<ThemeMode>(
     (localStorage.getItem("themeMode") as ThemeMode) ?? "system"
   );
@@ -61,6 +73,7 @@ export const useUiStore = defineStore("ui", () => {
   }
 
   return {
+    locale, setLocale,
     isDark, themeMode, setThemeMode, toggleTheme,
     autoRestoreWorkspace, setAutoRestore, initTheme,
     currentTab, setTab,

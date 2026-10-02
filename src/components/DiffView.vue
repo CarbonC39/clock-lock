@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { FileText, Check, AlertCircle, Loader2 } from "lucide-vue-next";
@@ -119,26 +121,26 @@ function cancel() {
       </div>
       <div class="diff-actions">
         <template v-if="applyState === 'idle'">
-          <button class="apply-btn" @click="apply">Apply changes</button>
+          <button class="apply-btn" @click="apply">{{ t('Apply changes') }}</button>
         </template>
         <template v-else-if="applyState === 'applying'">
-          <span class="status-label applying">
-            <Loader2 :size="12" class="spin" /> Applying...
+            <span class="status-label applying">
+            <Loader2 :size="12" class="spin" /> {{ t('Applying...') }}
           </span>
         </template>
         <template v-else-if="applyState === 'done'">
           <span class="status-label done">
-            <Check :size="12" /> Applied
+            <Check :size="12" /> {{ t('Applied') }}
           </span>
-          <button class="undo-btn" @click="cancel">Dismiss</button>
+          <button class="undo-btn" @click="cancel">{{ t('Dismiss') }}</button>
         </template>
         <template v-else>
           <span class="status-label error">
             <AlertCircle :size="12" />
-            {{ applyError || "Failed" }}
+            {{ applyError || t('Failed') }}
           </span>
-          <button class="retry-btn" @click="apply">Retry</button>
-          <button class="undo-btn" @click="cancel">Dismiss</button>
+          <button class="retry-btn" @click="apply">{{ t('Retry') }}</button>
+          <button class="undo-btn" @click="cancel">{{ t('Dismiss') }}</button>
         </template>
       </div>
     </div>

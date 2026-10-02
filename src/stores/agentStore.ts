@@ -8,6 +8,7 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { useWorkspaceStore } from "./workspaceStore";
+import { useUiStore } from "./uiStore";
 import { useSettingsStore } from "./settingsStore";
 import { useSupervisionStore } from "./supervisionStore";
 
@@ -521,6 +522,7 @@ export const useAgentStore = defineStore("agent", () => {
   async function buildSystemPrompt(): Promise<string> {
     const workspace = useWorkspaceStore();
     const settings = useSettingsStore();
+    const ui = useUiStore();
     const activity = buildRecentActivitySummary();
     const gitLine = await getGitContextLine();
     const annotationsLine = await getAnnotationsContextLine();
@@ -528,6 +530,9 @@ export const useAgentStore = defineStore("agent", () => {
     const personalitySection = personality
       ? `\n# Personality\n\n${personality}\n`
       : "";
+    const languageSection = ui.locale === "zh-CN"
+      ? "\n# Response language\n\nRespond in Simplified Chinese unless the user asks for another language. Keep code, commands, file paths, and technical identifiers unchanged.\n"
+      : "\n# Response language\n\nRespond in English unless the user asks for another language. Keep code, commands, file paths, and technical identifiers unchanged.\n";
 
     return `# Identity
 
@@ -535,6 +540,7 @@ You are the project-aware AI companion in a desktop app for solo developers.
 Your purpose is to keep the user oriented, organized, and moving forward. You track project state, preserve useful context, suggest concrete next steps, and maintain the project's knowledge base.
 You supervise and advise. The user does the work.
 ${personalitySection}
+${languageSection}
 # Project State
 
 Each workspace has one \`home.md\` file, jointly maintained by the user and you.

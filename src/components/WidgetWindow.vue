@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, computed } from "vue";
 import { marked } from "marked";
 import { Maximize2, SendHorizonal, CheckCircle2, Activity, Bell, Repeat2 } from "lucide-vue-next";
@@ -109,14 +111,14 @@ function interact() {
           <!-- Task View -->
           <div v-else class="task-view">
             <div v-if="firstTodo" class="todo-card">
-              <span class="todo-label">GOAL</span>
+              <span class="todo-label">{{ t('GOAL') }}</span>
               <p class="todo-text">{{ firstTodo }}</p>
               <button class="complete-btn" @click="workspace.completeFirstTodo()">
                 <CheckCircle2 :size="14" />
               </button>
             </div>
             <div v-else class="empty-view">
-              <p>COZY TIME (*ﾟ▽ﾟ*)</p>
+              <p>{{ t('COZY TIME (*ﾟ▽ﾟ*)') }}</p>
             </div>
           </div>
         </div>
@@ -124,15 +126,15 @@ function interact() {
 
       <!-- MIDDLE: Buttons -->
       <div class="physical-controls">
-        <button class="btn-control" @click="sendQuick('/status')" title="Status update">
+        <button class="btn-control" @click="sendQuick('/status')" :title="t('Status update')">
           <Activity :size="15" />
         </button>
-        <button class="btn-control" @click="sendQuick('/remind')" title="Remind me of my todo">
+        <button class="btn-control" @click="sendQuick('/remind')" :title="t('Remind me of my todo')">
           <Bell :size="15" />
         </button>
         <button
           class="btn-control"
-          :title="showBubble ? 'Show current goal' : 'Show last reply'"
+          :title="showBubble ? t('Show current goal') : t('Show last reply')"
           @click="showBubble = !showBubble"
         >
           <Repeat2 :size="15" />
@@ -146,7 +148,7 @@ function interact() {
           <input
             v-model="quickInput"
             class="external-input"
-            placeholder="COMMAND..."
+            :placeholder="t('COMMAND...')"
             :disabled="agent.isBusy"
             @keydown="onKeydown"
           />

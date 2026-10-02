@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, computed } from "vue";
 import { marked } from "marked";
 import { Wrench, ChevronDown, ChevronRight, Brain, ListTodo, FileText, Image } from "lucide-vue-next";
@@ -126,17 +128,17 @@ function renderMd(src: string): string {
       <div class="checkin-body">
         <p class="checkin-text">{{ message.content }}</p>
         <div v-if="message.checkinMeta!.topTodo" class="checkin-todo-pill">
-          <span class="pill-label">still on your list</span>
+          <span class="pill-label">{{ t('still on your list') }}</span>
           <span class="pill-text">{{ message.checkinMeta!.topTodo }}</span>
         </div>
       </div>
       <div class="checkin-footer">
         <template v-if="!message.checkinMeta!.snoozed">
-          <button class="checkin-btn btn-primary" @click="agent.sendMessage(`I'm back!`)">I'm here</button>
-          <button class="checkin-btn btn-secondary" @click="agent.sendMessage('/remind')">Remind me</button>
-          <button class="checkin-btn btn-ghost" @click="handleSnooze(message.id)">Snooze 1h</button>
+          <button class="checkin-btn btn-primary" @click="agent.sendMessage(`I'm back!`)">{{ t("I'm here") }}</button>
+          <button class="checkin-btn btn-secondary" @click="agent.sendMessage('/remind')">{{ t('Remind me') }}</button>
+          <button class="checkin-btn btn-ghost" @click="handleSnooze(message.id)">{{ t('Snooze 1h') }}</button>
         </template>
-        <span v-else class="checkin-snoozed">Snoozed · see you in an hour</span>
+        <span v-else class="checkin-snoozed">{{ t('Snoozed · see you in an hour') }}</span>
       </div>
     </div>
   </div>
@@ -150,8 +152,8 @@ function renderMd(src: string): string {
       v-if="message.initiatedBy && !noteSnoozed"
       class="note-snooze"
       @click="handleNoteSnooze(message)"
-    >Snooze 1h</button>
-    <span v-else-if="message.initiatedBy && noteSnoozed" class="note-snoozed">Snoozed</span>
+    >{{ t('Snooze 1h') }}</button>
+    <span v-else-if="message.initiatedBy && noteSnoozed" class="note-snoozed">{{ t('Snoozed') }}</span>
   </div>
 
   <!-- Tool call result -->
@@ -160,7 +162,7 @@ function renderMd(src: string): string {
     <div v-if="message.name === 'split_task'" class="task-breakdown-card">
       <div class="card-header">
         <ListTodo :size="14" />
-        <span>Task Breakdown</span>
+        <span>{{ t('Task Breakdown') }}</span>
       </div>
       <div class="card-body">
         <p class="original-task">{{ taskBreakdown?.original_task }}</p>
@@ -171,7 +173,7 @@ function renderMd(src: string): string {
           </li>
         </ul>
         <button class="accept-btn" @click="acceptSubtasks()">
-          Accept & Add to Todos
+          {{ t('Accept & Add to Todos') }}
         </button>
       </div>
     </div>
@@ -208,7 +210,7 @@ function renderMd(src: string): string {
       <div v-if="thoughts.length > 0" class="thought-monologue" :class="{ expanded: thoughtExpanded }">
         <button class="thought-header" @click="thoughtExpanded = !thoughtExpanded">
           <Brain :size="11" />
-          <span>Internal Monologue</span>
+          <span>{{ t('Internal Monologue') }}</span>
           <component :is="thoughtExpanded ? ChevronDown : ChevronRight" :size="10" />
         </button>
         <div v-if="thoughtExpanded" class="thought-list">

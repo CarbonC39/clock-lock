@@ -8,6 +8,7 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { useAgentStore } from "./agentStore";
+import { useUiStore } from "./uiStore";
 import { useSettingsStore } from "./settingsStore";
 import { useWorkspaceStore } from "./workspaceStore";
 
@@ -35,6 +36,26 @@ const SEED_POOL: string[] = [
   "Gentle ping! One small step is plenty to get rolling again.",
   "Missed you a little. Ready to get back into it, or still recharging?",
 ];
+const SEED_POOL_ZH: string[] = [
+  "来看看你进展如何，一切还顺利吗？",
+  "休息一下也没关系，准备好继续时我一直都在。",
+  "不着急，如果你想接着做，我可以陪你一起梳理。",
+  "希望你一切都好。准备好回来时，我们再继续。",
+  "还在吗？哪怕只推进一小步也很棒。",
+  "离开了一会儿？要不要从一件简单的小事开始？",
+  "你的桌面搭档来打个招呼，不用着急。",
+  "代码还在这里，准备好了随时回来。",
+  "有时稍微走开一下正好有帮助。准备继续了吗？",
+  "我一直在为你加油，要不要先处理一件小事？",
+  "休息得还好吗？我帮你留着位置呢。",
+  "回来后，我们可以从最轻松的地方开始。",
+  "这边安静了一会儿，还好吗？需要帮忙的话我在。",
+  "我不会催你，回来时我很乐意陪你一起做。",
+  "要不要我帮你找回刚才的思路？",
+  "慢慢来，等你准备好我们再继续。",
+  "轻轻提醒一下：迈出一小步就足够重新开始。",
+  "想你啦。准备继续工作，还是再休息一会儿？",
+];
 
 const POOL_KEY = "sv-checkin-pool";
 const USED_KEY = "sv-checkin-used";
@@ -43,25 +64,27 @@ const COUNT_KEY = "sv-checkin-count";
 const GROUNDED_EVERY = 5; // try a fresh, grounded line on every Nth check-in…
 const POOL_MIN_UNUSED = 5; // …and refill the pool when it runs this low.
 
-function loadPool(): string[] {
+function localePoolKey(locale: "en" | "zh-CN") { return `${POOL_KEY}-${locale}`; }
+function localeUsedKey(locale: "en" | "zh-CN") { return `${USED_KEY}-${locale}`; }
+function loadPool(locale: "en" | "zh-CN"): string[] {
   try {
-    const p = JSON.parse(localStorage.getItem(POOL_KEY) || "null");
+    const p = JSON.parse(localStorage.getItem(localePoolKey(locale)) || "null");
     if (Array.isArray(p) && p.length) return p as string[];
   } catch { /* fall through */ }
-  return SEED_POOL;
+  return locale === "zh-CN" ? SEED_POOL_ZH : SEED_POOL;
 }
-function loadUsed(): string[] {
+function loadUsed(locale: "en" | "zh-CN"): string[] {
   try {
-    const u = JSON.parse(localStorage.getItem(USED_KEY) || "[]");
+    const u = JSON.parse(localStorage.getItem(localeUsedKey(locale)) || "[]");
     return Array.isArray(u) ? (u as string[]) : [];
   } catch { return []; }
 }
-function saveUsed(u: string[]) {
-  localStorage.setItem(USED_KEY, JSON.stringify(u.slice(-40)));
+function saveUsed(u: string[], locale: "en" | "zh-CN") {
+  localStorage.setItem(localeUsedKey(locale), JSON.stringify(u.slice(-40)));
 }
 
 let refilling = false;
-async function refillPool(baseUrl: string, apiKey: string | undefined, model: string): Promise<void> {
+async function refillPool(baseUrl: string, apiKey: string | undefined, model: string, locale: "en" | "zh-CN"): Promise<void> {
   if (refilling) return;
   refilling = true;
   try {
@@ -77,7 +100,9 @@ async function refillPool(baseUrl: string, apiKey: string | undefined, model: st
           role: "user",
           content: [
             "You are Clock Lock, a warm peer coworker for ADHD developers.",
-            "Write 15 short, gentle check-in messages for when the user has been away from their work for a while.",
+            locale === "zh-CN"
+              ? "Write 15 short, gentle check-in messages in Simplified Chinese for when the user has been away from their work for a while."
+              : "Write 15 short, gentle check-in messages in English for when the user has been away from their work for a while.",
             "Vary the tone (playful, caring, encouraging, calm) and length. Keep each to 1-2 sentences.",
             "Each message must be complete and self-contained — NO placeholders, NO names, NO blanks to fill in, no emojis.",
             'Reply with ONLY a JSON array of strings, e.g. ["...", "..."].',
@@ -91,8 +116,8 @@ async function refillPool(baseUrl: string, apiKey: string | undefined, model: st
     const data = (await resp.json()) as { choices: { message: { content: string } }[] };
     const arr = parseSentenceArray(data.choices?.[0]?.message?.content ?? "");
     if (arr.length) {
-      const merged = Array.from(new Set([...loadPool(), ...arr])).slice(-40);
-      localStorage.setItem(POOL_KEY, JSON.stringify(merged));
+      const merged = Array.from(new Set([...loadPool(locale), ...arr])).slice(-40);
+      localStorage.setItem(localePoolKey(locale), JSON.stringify(merged));
     }
   } catch { /* keep existing pool */ } finally {
     refilling = false;
@@ -114,14 +139,14 @@ function parseSentenceArray(raw: string): string[] {
 }
 
 /** Pick an unused line from the pool, rotating so lines don't repeat. */
-function pickFromPool(refill?: () => void): string {
-  const pool = loadPool();
-  let used = loadUsed();
+function pickFromPool(locale: "en" | "zh-CN", refill?: () => void): string {
+  const pool = loadPool(locale);
+  let used = loadUsed(locale);
   let unused = pool.filter(s => !used.includes(s));
   if (!unused.length) { used = []; unused = pool; } // exhausted → reset rotation
-  const choice = unused[Math.floor(Math.random() * unused.length)] ?? SEED_POOL[0];
+  const choice = unused[Math.floor(Math.random() * unused.length)] ?? (locale === "zh-CN" ? SEED_POOL_ZH[0] : SEED_POOL[0]);
   used.push(choice);
-  saveUsed(used);
+  saveUsed(used, locale);
   if (refill && pool.filter(s => !used.includes(s)).length < POOL_MIN_UNUSED) refill();
   return choice;
 }
@@ -139,6 +164,7 @@ function bumpCount(): number {
 async function generateGrounded(
   baseUrl: string, apiKey: string | undefined, model: string,
   ctx: { idleMinutes: number; topTodo: string | null; focusFile: string | null; workspaceName: string },
+  locale: "en" | "zh-CN",
 ): Promise<string | null> {
   try {
     const resp = await fetch(`${baseUrl}/chat/completions`, {
@@ -152,7 +178,9 @@ async function generateGrounded(
         messages: [{
           role: "user",
           content: [
-            "You are Clock Lock, a warm peer coworker for ADHD developers.",
+            locale === "zh-CN"
+              ? "You are Clock Lock, a warm peer coworker for ADHD developers. Reply in Simplified Chinese."
+              : "You are Clock Lock, a warm peer coworker for ADHD developers. Reply in English.",
             `The user has been away from "${ctx.workspaceName}" for about ${ctx.idleMinutes} minutes.`,
             ctx.focusFile ? `They were last working in the file "${ctx.focusFile}".` : "",
             ctx.topTodo ? `Their top todo is: "${ctx.topTodo}".` : "",
@@ -172,6 +200,7 @@ async function generateGrounded(
 }
 
 export const useSupervisionStore = defineStore("supervision", () => {
+  const ui = useUiStore();
   const dnd = ref(localStorage.getItem("sv-dnd") === "true");
   const isRunning = ref(false);
 
@@ -308,7 +337,7 @@ export const useSupervisionStore = defineStore("supervision", () => {
         null;
 
       const refill = base_url
-        ? () => { refillPool(base_url, api_key, model).catch(() => {}); }
+        ? () => { refillPool(base_url, api_key, model, ui.locale).catch(() => {}); }
         : undefined;
 
       // Tier 2 (the treat): at most one fresh, grounded line per day.
@@ -321,11 +350,11 @@ export const useSupervisionStore = defineStore("supervision", () => {
       if (wantGrounded) {
         checkinText = await generateGrounded(base_url, api_key, model, {
           idleMinutes, topTodo, focusFile, workspaceName,
-        });
+        }, ui.locale);
         if (checkinText) markGroundedToday();
       }
       // Tier 1 (default): rotate a stored pool — zero API at trigger time.
-      if (!checkinText) checkinText = pickFromPool(refill);
+      if (!checkinText) checkinText = pickFromPool(ui.locale, refill);
 
       // OS notification (best-effort)
       try {

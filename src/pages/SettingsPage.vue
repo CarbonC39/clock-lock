@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, reactive, computed, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import {
@@ -45,6 +47,11 @@ const IDLE_PRESETS: { label: string; m: number }[] = [
   { label: "1d", m: 1440 },
   { label: "2d", m: 2880 },
 ];
+
+function formatIdlePreset(label: string) {
+  if (ui.locale !== "zh-CN") return label;
+  return ({ "30m": "30 分钟", "1h": "1 小时", "4h": "4 小时", "1d": "1 天", "2d": "2 天" } as Record<string, string>)[label] ?? label;
+}
 
 // Shared "presets + Custom" group helper: tracks whether the current value is a
 // preset, the Custom input state, and clamps on commit.
@@ -161,30 +168,30 @@ const selfCheckinIntervalGroup = useCustomPreset(
       <button class="back-btn" :title="embedded ? 'Close' : 'Back'" @click="goBack">
         <component :is="embedded ? X : ArrowLeft" :size="15" />
       </button>
-      <h1 class="settings-title">Settings</h1>
+      <h1 class="settings-title">{{ t('Settings') }}</h1>
     </div>
 
     <!-- Tabs -->
     <div class="settings-tabs">
       <button
-        v-for="t in TABS"
-        :key="t.id"
+        v-for="item in TABS"
+        :key="item.id"
         class="settings-tab"
-        :class="{ active: tab === t.id }"
-        @click="tab = t.id"
+        :class="{ active: tab === item.id }"
+        @click="tab = item.id"
       >
-        <component :is="t.icon" :size="14" />
-        <span>{{ t.label }}</span>
+        <component :is="item.icon" :size="14" />
+        <span>{{ t(item.label) }}</span>
       </button>
     </div>
 
     <div class="settings-body">
         <!-- ── Provider ── -->
         <section v-show="tab === 'provider'" class="section">
-          <h2 class="section-title">AI Provider</h2>
+          <h2 class="section-title">{{ t('AI Provider') }}</h2>
 
           <div class="field-group">
-            <label class="field-label">Provider</label>
+            <label class="field-label">{{ t('Provider') }}</label>
             <div class="provider-tabs">
               <button
                 class="provider-tab"
@@ -192,7 +199,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
                 @click="store.switchProvider('cloud')"
               >
                 <Cloud :size="14" />
-                Cloud (OpenAI-compatible)
+                {{ t('Cloud (OpenAI-compatible)') }}
               </button>
               <button
                 class="provider-tab"
@@ -200,13 +207,13 @@ const selfCheckinIntervalGroup = useCustomPreset(
                 @click="store.switchProvider('ollama')"
               >
                 <Server :size="14" />
-                Local (Ollama)
+                {{ t('Local (Ollama)') }}
               </button>
             </div>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Endpoint URL</label>
+            <label class="field-label">{{ t('Endpoint URL') }}</label>
             <input
               v-model="store.settings.base_url"
               class="field-input"
@@ -217,7 +224,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
           </div>
 
           <div v-if="store.settings.provider === 'cloud'" class="field-group">
-            <label class="field-label">API Key</label>
+            <label class="field-label">{{ t('API Key') }}</label>
             <div class="input-with-toggle">
               <input
                 v-model="store.settings.api_key"
@@ -227,14 +234,14 @@ const selfCheckinIntervalGroup = useCustomPreset(
                 spellcheck="false"
               />
               <button class="toggle-key-btn" @click="showKey = !showKey">
-                {{ showKey ? "Hide" : "Show" }}
+                {{ showKey ? t("Hide") : t("Show") }}
               </button>
             </div>
-            <p class="field-hint">Stored locally in app data. Never leaves your machine.</p>
+            <p class="field-hint">{{ t('Stored locally in app data. Never leaves your machine.') }}</p>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Model</label>
+            <label class="field-label">{{ t('Model') }}</label>
             <input
               v-model="store.settings.model"
               class="field-input"
@@ -247,10 +254,18 @@ const selfCheckinIntervalGroup = useCustomPreset(
 
         <!-- ── Appearance ── -->
         <section v-show="tab === 'appearance'" class="section">
-            <h2 class="section-title">Appearance</h2>
+            <h2 class="section-title">{{ t('Appearance') }}</h2>
 
             <div class="field-group">
-              <label class="field-label">Theme</label>
+              <label class="field-label">{{ t('Language') }}</label>
+              <div class="theme-tabs">
+                <button class="theme-tab" :class="{ active: ui.locale === 'en' }" @click="ui.setLocale('en')">English</button>
+                <button class="theme-tab" :class="{ active: ui.locale === 'zh-CN' }" @click="ui.setLocale('zh-CN')">中文</button>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label class="field-label">{{ t('Theme') }}</label>
               <div class="theme-tabs">
                 <button
                   class="theme-tab"
@@ -258,7 +273,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   @click="ui.setThemeMode('light')"
                 >
                   <Sun :size="13" />
-                  Light
+                  {{ t('Light') }}
                 </button>
                 <button
                   class="theme-tab"
@@ -266,7 +281,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   @click="ui.setThemeMode('system')"
                 >
                   <Monitor :size="13" />
-                  System
+                  {{ t('System') }}
                 </button>
                 <button
                   class="theme-tab"
@@ -274,7 +289,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   @click="ui.setThemeMode('dark')"
                 >
                   <Moon :size="13" />
-                  Dark
+                  {{ t('Dark') }}
                 </button>
               </div>
             </div>
@@ -283,12 +298,12 @@ const selfCheckinIntervalGroup = useCustomPreset(
         <!-- ── Behavior: App + Supervision ── -->
         <template v-if="tab === 'behavior'">
           <section class="section">
-            <h2 class="section-title">App Behavior</h2>
+            <h2 class="section-title">{{ t('App Behavior') }}</h2>
 
             <div class="toggle-row">
               <div class="toggle-info">
-                <span class="toggle-label">Auto-restore last workspace</span>
-                <span class="toggle-hint">Re-open the previous project folder on startup.</span>
+                <span class="toggle-label">{{ t('Auto-restore last workspace') }}</span>
+                <span class="toggle-hint">{{ t('Re-open the previous project folder on startup.') }}</span>
               </div>
               <button
                 class="toggle-btn"
@@ -300,44 +315,44 @@ const selfCheckinIntervalGroup = useCustomPreset(
             </div>
 
             <div class="field-group" style="margin-top: 8px">
-              <label class="field-label">Launch mode</label>
+              <label class="field-label">{{ t('Launch mode') }}</label>
               <div class="seg-tabs">
-                <button class="seg-tab" :class="{ active: store.settings.startup_mode === 'window' }" @click="store.settings.startup_mode = 'window'">Window</button>
-                <button class="seg-tab" :class="{ active: store.settings.startup_mode === 'minimized' }" @click="store.settings.startup_mode = 'minimized'">Minimized</button>
+                <button class="seg-tab" :class="{ active: store.settings.startup_mode === 'window' }" @click="store.settings.startup_mode = 'window'">{{ t('Window') }}</button>
+                <button class="seg-tab" :class="{ active: store.settings.startup_mode === 'minimized' }" @click="store.settings.startup_mode = 'minimized'">{{ t('Minimized') }}</button>
               </div>
             </div>
 
             <div class="field-group">
-              <label class="field-label">Close button</label>
+              <label class="field-label">{{ t('Close button') }}</label>
               <div class="seg-tabs">
-                <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'close' }" @click="store.settings.close_behavior = 'close'">Exit app</button>
-                <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'hide' }" @click="store.settings.close_behavior = 'hide'">Hide to tray</button>        
+                <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'close' }" @click="store.settings.close_behavior = 'close'">{{ t('Exit app') }}</button>
+                <button class="seg-tab" :class="{ active: store.settings.close_behavior === 'hide' }" @click="store.settings.close_behavior = 'hide'">{{ t('Hide to tray') }}</button>        
               </div>
               <p v-if="store.settings.close_behavior === 'close'" class="field-hint">
-                Clicking the window close button fully quits the app. Use the tray icon to reopen.
+                {{ t('Clicking the window close button fully quits the app. Use the tray icon to reopen.') }}
               </p>
               <p v-else class="field-hint">
-                Close button hides the window to the tray; the app keeps running. Quit from the tray menu.
+                {{ t('Close button hides the window to the tray; the app keeps running. Quit from the tray menu.') }}
               </p>
             </div>
 
             <div class="field-group">
-              <label class="field-label">Home location</label>
+              <label class="field-label">{{ t('Home location') }}</label>
               <div class="seg-tabs">
-                <button class="seg-tab" :class="{ active: store.settings.home_md_mode === 'appdata' }" @click="store.settings.home_md_mode = 'appdata'">AppData</button>
-                <button class="seg-tab" :class="{ active: store.settings.home_md_mode === 'workspace' }" @click="store.settings.home_md_mode = 'workspace'">Workspace</button>        
+                <button class="seg-tab" :class="{ active: store.settings.home_md_mode === 'appdata' }" @click="store.settings.home_md_mode = 'appdata'">{{ t('AppData') }}</button>
+                <button class="seg-tab" :class="{ active: store.settings.home_md_mode === 'workspace' }" @click="store.settings.home_md_mode = 'workspace'">{{ t('Workspace') }}</button>        
               </div>
-              <p class="field-hint">Workspace mode saves home.md in .clock-lock/</p>
+              <p class="field-hint">{{ t('Workspace mode saves home.md in .clock-lock/') }}</p>
             </div>          </section>
 
           <!-- Supervision -->
           <section class="section">
-            <h2 class="section-title">Check-in</h2>
+            <h2 class="section-title">{{ t('Check-in') }}</h2>
 
             <div class="toggle-row">
               <div class="toggle-info">
-                <span class="toggle-label">Do Not Disturb</span>
-                <span class="toggle-hint">Suppress idle check-ins and notifications.</span>
+                <span class="toggle-label">{{ t('Do Not Disturb') }}</span>
+                <span class="toggle-hint">{{ t('Suppress idle check-ins and notifications.') }}</span>
               </div>
               <button
                 class="toggle-btn"
@@ -350,8 +365,8 @@ const selfCheckinIntervalGroup = useCustomPreset(
 
             <div class="toggle-row" style="margin-top: 6px">
               <div class="toggle-info">
-                <span class="toggle-label">Idle check-ins</span>
-                <span class="toggle-hint">Master switch: whether Clock Lock checks in at all after you've been idle past the threshold below. (For the agent checking its own progress, see <em>Agent self-audit</em> below.)</span>
+                <span class="toggle-label">{{ t('Idle check-ins') }}</span>
+                <span class="toggle-hint">{{ t("Master switch: whether Clock Lock checks in at all after you've been idle past the threshold below. (For the agent checking its own progress, see Agent self-audit below.)") }}</span>
               </div>
               <button
                 class="toggle-btn"
@@ -363,7 +378,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
             </div>
 
             <div class="field-group" style="margin-top: 12px">
-              <label class="field-label">Idle check-in threshold</label>
+              <label class="field-label">{{ t('Idle check-in threshold') }}</label>
               <div v-if="sv.idleEnabled" class="seg-tabs">
                 <button
                   v-for="p in IDLE_PRESETS"
@@ -371,14 +386,14 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   class="seg-tab"
                   :class="{ active: idleGroup.customActive ? false : sv.idleMinutes === p.m }"
                   @click="sv.setIdleThreshold(p.m, true)"
-                >{{ p.label }}</button>
+                >{{ formatIdlePreset(p.label) }}</button>
                 <button
                   class="seg-tab"
                   :class="{ active: idleGroup.customActive }"
                   @click="idleGroup.customOpen = !idleGroup.customOpen"
-                >Custom</button>
+                >{{ t('Custom') }}</button>
               </div>
-              <span v-else class="field-hint">Check-ins are off. Use DND for a quick mute instead.</span>
+              <span v-else class="field-hint">{{ t('Check-ins are off. Use DND for a quick mute instead.') }}</span>
               <div v-if="sv.idleEnabled && idleGroup.customOpen" class="custom-input-row">
                 <input
                   v-model.number="idleGroup.customValue"
@@ -389,15 +404,15 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   @blur="idleGroup.commitCustom"
                   @keydown.enter="idleGroup.commitCustom"
                 />
-                <span class="field-hint">minutes (1 min – 2 weeks)</span>
+                <span class="field-hint">{{ t('minutes (1 min – 2 weeks)') }}</span>
               </div>
-              <p v-if="sv.idleEnabled" class="field-hint">How long you can be idle before the agent gently checks in.</p>
+              <p v-if="sv.idleEnabled" class="field-hint">{{ t('How long you can be idle before the agent gently checks in.') }}</p>
             </div>
 
             <div class="toggle-row" style="margin-top: 6px">
               <div class="toggle-info">
-                <span class="toggle-label">AI-written check-in messages</span>
-                <span class="toggle-hint">About the <em>words</em>, not the trigger: occasionally (≤ once a day) let the AI write a fresh line about what you were working on. Off keeps the built-in phrase pool — zero API calls. Idle check-ins still fire either way.</span>
+                <span class="toggle-label">{{ t('AI-written check-in messages') }}</span>
+                <span class="toggle-hint">{{ t("About the words, not the trigger: occasionally (≤ once a day) let the AI write a fresh line about what you were working on. Off keeps the built-in phrase pool — zero API calls. Idle check-ins still fire either way.") }}</span>
               </div>
               <button
                 class="toggle-btn"
@@ -411,12 +426,12 @@ const selfCheckinIntervalGroup = useCustomPreset(
 
           <!-- Git tracking -->
           <section class="section">
-            <h2 class="section-title">Git tracking</h2>
+            <h2 class="section-title">{{ t('Git tracking') }}</h2>
 
             <div class="toggle-row">
               <div class="toggle-info">
-                <span class="toggle-label">Track new commits</span>
-                <span class="toggle-hint">Watch the repo for new commits and let the agent react to what changed.</span>
+                <span class="toggle-label">{{ t('Track new commits') }}</span>
+                <span class="toggle-hint">{{ t('Watch the repo for new commits and let the agent react to what changed.') }}</span>
               </div>
               <button
                 class="toggle-btn"
@@ -428,7 +443,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
             </div>
 
             <div class="field-group" style="margin-top: 12px">
-              <label class="field-label">Commit threshold</label>
+              <label class="field-label">{{ t('Commit threshold') }}</label>
               <div class="seg-tabs">
                 <button
                   v-for="v in [3, 5, 10]"
@@ -441,7 +456,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   class="seg-tab"
                   :class="{ active: gitThresholdGroup.customActive }"
                   @click="gitThresholdGroup.customOpen = !gitThresholdGroup.customOpen"
-                >Custom</button>
+                >{{ t('Custom') }}</button>
               </div>
               <div v-if="gitThresholdGroup.customOpen" class="custom-input-row">
                 <input
@@ -453,13 +468,13 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   @blur="gitThresholdGroup.commitCustom"
                   @keydown.enter="gitThresholdGroup.commitCustom"
                 />
-                <span class="field-hint">commits (1–50)</span>
+                <span class="field-hint">{{ t('commits (1–50)') }}</span>
               </div>
-              <p class="field-hint">How many new commits accumulate before the agent takes a look.</p>
+              <p class="field-hint">{{ t('How many new commits accumulate before the agent takes a look.') }}</p>
             </div>
 
             <div class="field-group">
-              <label class="field-label">Min interval between reactions</label>
+              <label class="field-label">{{ t('Min interval between reactions') }}</label>
               <div class="seg-tabs">
                 <button
                   v-for="v in [10, 30, 60]"
@@ -467,12 +482,12 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   class="seg-tab"
                   :class="{ active: gitIntervalGroup.customActive ? false : store.settings.git_tracking_min_interval_minutes === v }"
                   @click="setGitInterval(v)"
-                >{{ v }} min</button>
+                >{{ v }} {{ t('min') }}</button>
                 <button
                   class="seg-tab"
                   :class="{ active: gitIntervalGroup.customActive }"
                   @click="gitIntervalGroup.customOpen = !gitIntervalGroup.customOpen"
-                >Custom</button>
+                >{{ t('Custom') }}</button>
               </div>
               <div v-if="gitIntervalGroup.customOpen" class="custom-input-row">
                 <input
@@ -484,19 +499,19 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   @blur="gitIntervalGroup.commitCustom"
                   @keydown.enter="gitIntervalGroup.commitCustom"
                 />
-                <span class="field-hint">minutes (1–240)</span>
+                <span class="field-hint">{{ t('minutes (1–240)') }}</span>
               </div>
             </div>
           </section>
 
           <!-- Agent self-audit -->
           <section class="section">
-            <h2 class="section-title">Agent self-audit on silence</h2>
+            <h2 class="section-title">{{ t('Agent self-audit on silence') }}</h2>
 
             <div class="toggle-row">
               <div class="toggle-info">
-                <span class="toggle-label">Self-audit on silence</span>
-                <span class="toggle-hint">The agent reviews its own progress when it's been quiet — no file changes, no chat, no agent output. (This is about the agent's self-review, not about nudging you — see <em>Check-in</em> above.)</span>
+                <span class="toggle-label">{{ t('Self-audit on silence') }}</span>
+                <span class="toggle-hint">{{ t("The agent reviews its own progress when it's been quiet — no file changes, no chat, no agent output. (This is about the agent's self-review, not about nudging you — see Check-in above.)") }}</span>
               </div>
               <button
                 class="toggle-btn"
@@ -508,7 +523,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
             </div>
 
             <div class="field-group" style="margin-top: 12px">
-              <label class="field-label">Silence threshold</label>
+              <label class="field-label">{{ t('Silence threshold') }}</label>
               <div class="seg-tabs">
                 <button
                   v-for="v in [15, 25, 45]"
@@ -516,12 +531,12 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   class="seg-tab"
                   :class="{ active: selfCheckinIdleGroup.customActive ? false : store.settings.agent_self_checkin_idle_minutes === v }"
                   @click="setSelfCheckinIdle(v)"
-                >{{ v }} min</button>
+                >{{ v }} {{ t('min') }}</button>
                 <button
                   class="seg-tab"
                   :class="{ active: selfCheckinIdleGroup.customActive }"
                   @click="selfCheckinIdleGroup.customOpen = !selfCheckinIdleGroup.customOpen"
-                >Custom</button>
+                >{{ t('Custom') }}</button>
               </div>
               <div v-if="selfCheckinIdleGroup.customOpen" class="custom-input-row">
                 <input
@@ -533,13 +548,13 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   @blur="selfCheckinIdleGroup.commitCustom"
                   @keydown.enter="selfCheckinIdleGroup.commitCustom"
                 />
-                <span class="field-hint">minutes (5–180)</span>
+                <span class="field-hint">{{ t('minutes (5–180)') }}</span>
               </div>
-              <p class="field-hint">No file changes, no user chat, and no agent output for this long triggers a check-in.</p>
+              <p class="field-hint">{{ t('No file changes, no user chat, and no agent output for this long triggers a check-in.') }}</p>
             </div>
 
             <div class="field-group">
-              <label class="field-label">Min interval between check-ins</label>
+              <label class="field-label">{{ t('Min interval between check-ins') }}</label>
               <div class="seg-tabs">
                 <button
                   v-for="v in [30, 60, 120]"
@@ -552,7 +567,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   class="seg-tab"
                   :class="{ active: selfCheckinIntervalGroup.customActive }"
                   @click="selfCheckinIntervalGroup.customOpen = !selfCheckinIntervalGroup.customOpen"
-                >Custom</button>
+                >{{ t('Custom') }}</button>
               </div>
               <div v-if="selfCheckinIntervalGroup.customOpen" class="custom-input-row">
                 <input
@@ -564,7 +579,7 @@ const selfCheckinIntervalGroup = useCustomPreset(
                   @blur="selfCheckinIntervalGroup.commitCustom"
                   @keydown.enter="selfCheckinIntervalGroup.commitCustom"
                 />
-                <span class="field-hint">minutes (10–480)</span>
+                <span class="field-hint">{{ t('minutes (10–480)') }}</span>
               </div>
             </div>
           </section>
@@ -572,22 +587,22 @@ const selfCheckinIntervalGroup = useCustomPreset(
 
         <!-- ── Agent ── -->
         <section v-show="tab === 'agent'" class="section">
-        <h2 class="section-title">Agent</h2>
+        <h2 class="section-title">{{ t('Agent') }}</h2>
 
         <div class="field-group">
-          <label class="field-label">Personality prompt</label>
+          <label class="field-label">{{ t('Personality prompt') }}</label>
           <textarea
             v-model="store.settings.personality"
             class="field-input field-textarea"
             rows="3"
-            placeholder="e.g. encouraging senior developer who keeps things brief"
+              :placeholder="t('e.g. encouraging senior developer who keeps things brief')"
           />
-          <p class="field-hint">Injected into the system prompt to shape the agent's tone and style.</p>
+          <p class="field-hint">{{ t("Injected into the system prompt to shape the agent's tone and style.") }}</p>
         </div>
 
         <div class="field-row">
           <div class="field-group field-half">
-            <label class="field-label">Max context messages</label>
+            <label class="field-label">{{ t('Max context messages') }}</label>
             <input
               v-model.number="store.settings.max_context_messages"
               class="field-input"
@@ -597,11 +612,11 @@ const selfCheckinIntervalGroup = useCustomPreset(
               step="5"
               @blur="(e) => { const v = (e.target as HTMLInputElement).valueAsNumber; if (isNaN(v) || v < 5) store.settings.max_context_messages = 30 }"
             />
-            <p class="field-hint">Past messages included per request.</p>
+            <p class="field-hint">{{ t('Past messages included per request.') }}</p>
           </div>
 
           <div class="field-group field-half">
-            <label class="field-label">Max response tokens</label>
+            <label class="field-label">{{ t('Max response tokens') }}</label>
             <input
               v-model.number="store.settings.max_tokens"
               class="field-input"
@@ -611,19 +626,19 @@ const selfCheckinIntervalGroup = useCustomPreset(
               step="256"
               @blur="(e) => { const v = (e.target as HTMLInputElement).valueAsNumber; if (isNaN(v) || v < 256) store.settings.max_tokens = 4096 }"
             />
-            <p class="field-hint">Token budget per response.</p>
+            <p class="field-hint">{{ t('Token budget per response.') }}</p>
           </div>
 
           <div class="field-group field-half">
-            <label class="field-label">Shell path</label>
+            <label class="field-label">{{ t('Shell path') }}</label>
             <input
               v-model="store.settings.shell_path"
               class="field-input"
               type="text"
-              placeholder="Auto-detect (cmd / sh)"
+              :placeholder="t('Auto-detect (cmd / sh)')"
               spellcheck="false"
             />
-            <p class="field-hint">Shell executable for running bash blocks. On Windows, set to e.g. <code>C:\Program Files\Git\bin\bash.exe</code> for Git Bash.</p>
+            <p class="field-hint">{{ t('Shell executable for running bash blocks. On Windows, set to e.g. C:\\Program Files\\Git\\bin\\bash.exe for Git Bash.') }}</p>
           </div>
 
           <div class="field-group field-half" />

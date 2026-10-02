@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, computed, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
@@ -120,7 +122,7 @@ async function saveAnnotation() {
         <button
           v-if="workspace.path"
           class="head-btn"
-          title="Refresh"
+          :title="t('Refresh')"
           @click="workspace.refreshTree()"
         ><RotateCw :size="13" /></button>
       </header>
@@ -129,8 +131,8 @@ async function saveAnnotation() {
       <div v-if="!workspace.path" class="drawer-empty">
         <button class="open-zone" @click="workspace.openWorkspace()">
           <FolderOpen :size="24" />
-          <span class="open-title">Open a Workspace</span>
-          <span class="open-hint">Browse for a project folder</span>
+          <span class="open-title">{{ t('Open a Workspace') }}</span>
+          <span class="open-hint">{{ t('Browse for a project folder') }}</span>
         </button>
       </div>
 
@@ -142,24 +144,24 @@ async function saveAnnotation() {
           :node="node"
           :depth="0"
         />
-        <div v-if="!workspace.fileTree.length" class="empty-hint">Empty workspace</div>
+        <div v-if="!workspace.fileTree.length" class="empty-hint">{{ t('Empty workspace') }}</div>
       </div>
     </div>
 
     <!-- ── Preview pane ── -->
     <div v-if="hasPreview" class="pane-view">
       <header class="view-head">
-        <button class="head-btn" title="Close preview" @click="workspace.deselect()">
+        <button class="head-btn" :title="t('Close preview')" @click="workspace.deselect()">
           <PanelLeftClose :size="14" />
         </button>
         <FileText :size="13" class="view-icon" />
         <span class="view-name">{{ selectedName }}</span>
-        <button class="view-act" title="Open in system app" @click="openExternally">
+        <button class="view-act" :title="t('Open in system app')" @click="openExternally">
           <ExternalLink :size="13" />
         </button>
-        <button class="view-act feed" :disabled="agent.isBusy" title="Attach this file to chat" @click="feedToAgent">
+        <button class="view-act feed" :disabled="agent.isBusy" :title="t('Attach this file to chat')" @click="feedToAgent">
           <Paperclip :size="13" />
-          <span>Attach</span>
+          <span>{{ t('Attach') }}</span>
         </button>
       </header>
 
@@ -175,20 +177,20 @@ async function saveAnnotation() {
           <div v-if="imageDataUrl" class="image-preview">
             <img :src="imageDataUrl" :alt="selectedName ?? ''" />
           </div>
-          <div v-else class="no-preview-badge">No inline preview — try "Open in system app".</div>
+          <div v-else class="no-preview-badge">{{ t('No inline preview — try "Open in system app".') }}</div>
 
           <div class="annotation-area">
-            <p class="annotation-label">Agent annotation</p>
+            <p class="annotation-label">{{ t('Agent annotation') }}</p>
             <div class="annotation-row">
               <input
                 v-model="annotationNote"
                 class="annotation-input"
-                placeholder="Describe this file so the agent understands it… (optional)"
+                :placeholder="t('Describe this file so the agent understands it… (optional)')"
                 @keydown.enter="saveAnnotation"
                 @blur="saveAnnotation"
               />
               <button class="btn-save" @click="saveAnnotation">
-                {{ annotationSaved ? "Saved!" : "Save" }}
+                {{ annotationSaved ? t('Saved!') : t('Save') }}
               </button>
             </div>
           </div>

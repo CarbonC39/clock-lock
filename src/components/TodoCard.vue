@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, computed, nextTick } from "vue";
 import { Plus, X, CheckSquare } from "lucide-vue-next";
 import { useWorkspaceStore } from "../stores/workspaceStore";
@@ -49,12 +51,12 @@ function onNewKeydown(e: KeyboardEvent) {
   <div class="card todo-card">
     <div class="card-head">
       <CheckSquare :size="13" class="head-icon" />
-      <span class="head-title">Todos</span>
+      <span class="head-title">{{ t('Todos') }}</span>
       <span v-if="todos.length" class="head-count">{{ doneCount }}/{{ todos.length }}</span>
       <button
         class="add-btn"
         :class="{ active: showAdd }"
-        :title="showAdd ? 'Close' : 'Add task'"
+        :title="showAdd ? t('Close') : t('Add task')"
         @click="toggleAdd"
       >
         <Plus :size="14" />
@@ -87,13 +89,13 @@ function onNewKeydown(e: KeyboardEvent) {
         />
         <span v-else class="task-text" @dblclick="startEdit(i)">{{ todo.text || "…" }}</span>
 
-        <button class="task-remove" title="Remove" @click="workspace.deleteTodo(i)">
+        <button class="task-remove" :title="t('Remove')" @click="workspace.deleteTodo(i)">
           <X :size="10" />
         </button>
       </div>
 
       <p v-if="!todos.length && !showAdd" class="empty-hint">
-        No tasks yet. Hit <span class="kbd">+</span> or ask the agent.
+        {{ t('No tasks yet. Hit') }} <span class="kbd">+</span> {{ t('or ask the agent.') }}
       </p>
 
       <!-- New-task input lives at the bottom — closest to where you add -->
@@ -102,11 +104,11 @@ function onNewKeydown(e: KeyboardEvent) {
           ref="newInputEl"
           v-model="newText"
           class="new-input"
-          placeholder="New task… (Enter to add, Esc to close)"
+          :placeholder="t('New task… (Enter to add, Esc to close)')"
           @keydown="onNewKeydown"
           @blur="submitNew"
         />
-        <button class="new-close" title="Close" @mousedown.prevent="closeAdd">
+        <button class="new-close" :title="t('Close')" @mousedown.prevent="closeAdd">
           <X :size="13" />
         </button>
       </div>

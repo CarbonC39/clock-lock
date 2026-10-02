@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../i18n";
+const { t } = useI18n();
 import { ref, computed, watch, nextTick } from "vue";
 import { marked } from "marked";
 import { Pencil } from "lucide-vue-next";
@@ -60,10 +62,10 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
   <div class="card overview-card">
     <div class="card-head">
       <div class="seg">
-        <button class="seg-btn" :class="{ on: tab === 'overview' }" @click="switchTab('overview')">Overview</button>
-        <button class="seg-btn" :class="{ on: tab === 'notes' }" @click="switchTab('notes')">Notes</button>
+        <button class="seg-btn" :class="{ on: tab === 'overview' }" @click="switchTab('overview')">{{ t('Overview') }}</button>
+        <button class="seg-btn" :class="{ on: tab === 'notes' }" @click="switchTab('notes')">{{ t('Notes') }}</button>
       </div>
-      <button v-if="!editing" class="edit-btn" title="Edit" @click="startEdit">
+      <button v-if="!editing" class="edit-btn" :title="t('Edit')" @click="startEdit">
         <Pencil :size="12" />
       </button>
     </div>
@@ -77,7 +79,7 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
           @blur="commit"
           @commit="commit"
         />
-        <p class="edit-hint">Ctrl+Enter / Esc to save</p>
+        <p class="edit-hint">{{ t('Ctrl+Enter / Esc to save') }}</p>
       </div>
 
       <div
@@ -89,7 +91,7 @@ watch(current, (v) => { if (!editing.value) draft.value = v; });
 
       <p v-else class="empty-hint" @dblclick="startEdit">
         <template v-if="tab === 'overview'">
-          No description yet. Double-click to write one, or ask the agent to <code>/scan</code>.
+          {{ t('No description yet. Double-click to write one, or ask the agent to') }} <code>/scan</code>.
         </template>
         <template v-else>
           No notes yet. The agent jots observations here as you work. Double-click to add your own.
